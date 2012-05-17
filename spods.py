@@ -31,8 +31,11 @@ class Table(object):
         self.title = title
         self.fields = fields
 
-    def create_table_stmt(self):
-        query = "CREATE TABLE %s (" % self.title
+    def create_table_stmt(self, force=False):
+        if force:
+            query = "CREATE TABLE %s (" % self.title
+        else:
+            query = "CREATE TABLE IF NOT EXISTS %s (" % self.title
 
         for field in self.fields:
             # 1. title
@@ -69,7 +72,7 @@ class Table(object):
                 return True
         return False
 
-def create_linked_class(table, db):
+def link_table(table, db):
     """Given a table object and a database connection, returns a class that
     represents rows within that table, linked to the database.
     
@@ -77,6 +80,11 @@ def create_linked_class(table, db):
 
     # allow lookup of row results by column name
     db.row_factory = sqlite3.Row
+
+    # attempt to make the table, if it doesn't already exist
+    cur = db.cursor()
+    cur.execute(table.create_table_stmt(force=False))
+    cur.close()
     
     class LinkedClass(IterableUserDict, object):
 
@@ -120,7 +128,7 @@ def create_linked_class(table, db):
             
             # update db
             c = db.cursor()
-            c.execute("UPDATE %s SET %s = ? WHERE id = ?" % (table.title, key), (value, self['id']))
+            c.execute("UPDATE %s SET %s = ? WHERE id = ?" % (table.title, key), (value, self.id))
             c.close()
 
             # save
@@ -130,34 +138,66 @@ def create_linked_class(table, db):
             if not table.is_field(key):
                 # not a valid key
                 raise AttributeError(key)
+
+            c = db.cursor()
+            c.execute("UPDATE %s SET %s = NULL WHERE id = ? LIMIT 1" % (table.title, key), (self.id, ))
+            row = c.fetchone()
             
             del self[key]
 
         ## Initialiser
-        def __init__(self):
+        def __init__(self, id=None):
+            """Creates a new instance of this object, linked to the database.
+            All modifications are synced.
+
+            If an ID is provided, loads this existing record, rather than creating a new one."""
+            
             self.data = {}
 
-            # create new record in db (with default values)
-            c = db.cursor()
-            c.execute("INSERT INTO %s (id) VALUES (NULL)" % table.title)
-            
-            # save id
-            self.data['id'] = c.lastrowid
-            c.close()
+            if id == None:
+                # create new record in db (with default values)
+                c = db.cursor()
+                c.execute("INSERT INTO %s (id) VALUES (NULL)" % table.title)
+                
+                # save id
+                self.data['id'] = c.lastrowid
+                c.close()
+            else:
+                self.data['id'] = id
 
             # load record
             self.read_sync()
 
         ## Sync methods
         def read_sync(self):
-            """Reads the value for this ID out of the DB, replacing local values."""
+            """Reads the value for this row out of the DB, replacing local values.
+            Relies on the ID of the object to match the data in the DB."""
             c = db.cursor()
             c.execute("SELECT * FROM %s WHERE id = ? LIMIT 1" % table.title, (self.id, ))
             row = c.fetchone()
-            c.close()or field in self.fields:
+            c.close()
 
+            if row:
+                for f in table.fields:
+                    self.data[f.title] = row[f.title]
+
+        def write_sync(self):
+            """Writes the value for this row into the DB, replacing all values.
+            Relies on the ID of the object to match the data in the DB."""
+
+            # build up query
+            query = "UPDATE %s SET " % (table.title)
+            args = []
             for f in table.fields:
-                self.data[f.title] = row[f.title]
+                query += " %s = ?," % (f.title)
+                args.append(self[f.title])
+            # remove last comma
+            query = query[:-1] + " WHERE id = ?"
+            args.append(self['id'])
+            
+            c = db.cursor()
+            c.execute(query, args)
+            c.close()
 
     return LinkedClass
 
@@ -181,12 +221,7 @@ if __name__ == "__main__":
 
     exercises_table = Table(title, fields)
 
-    print exercises_table.create_table_stmt()
-    cur = con.cursor()
-    print cur.execute(exercises_table.create_table_stmt())
-    cur.close()
-
-    Exercise = create_linked_class(exercises_table, con)
+    Exercise = link_table(exercises_table, con)
     x = Exercise()
     print x
     x['id'] = 5
