@@ -10,6 +10,7 @@ class Field(object):
     type_map = {
         str: ("TEXT", str),
         int: ("INTEGER", int),
+        bool: ("INTEGER", lambda x: {True: 1, False: 0}[x]),
         tuple: ("TEXT", json.dumps)
     }
     
@@ -30,6 +31,14 @@ class Table(object):
     def __init__(self, title, fields=[]):
         self.title = title
         self.fields = fields
+
+        # create the ID field, if no primary key was specified
+        for f in fields:
+            if f.pk == True:
+                break
+        else:
+            # no fields are PK
+            fields.append(Field('id', int, pk=True))
 
     def create_table_stmt(self, force=False):
         if force:
@@ -80,6 +89,9 @@ def link_table(table, db):
 
     # allow lookup of row results by column name
     db.row_factory = sqlite3.Row
+
+    # turn on autocommits
+    con.isolation_level = None
 
     # attempt to make the table, if it doesn't already exist
     cur = db.cursor()
@@ -143,7 +155,7 @@ def link_table(table, db):
             c.execute("UPDATE %s SET %s = NULL WHERE id = ? LIMIT 1" % (table.title, key), (self.id, ))
             row = c.fetchone()
             
-            del self[key]
+            self[key] = None
 
         ## Initialiser
         def __init__(self, id=None):
@@ -177,9 +189,11 @@ def link_table(table, db):
             row = c.fetchone()
             c.close()
 
-            if row:
-                for f in table.fields:
-                    self.data[f.title] = row[f.title]
+            if row == None:
+                raise Exception("No record found with ID '%s'." % self.id)
+                
+            for f in table.fields:
+                self.data[f.title] = row[f.title]
 
         def write_sync(self):
             """Writes the value for this row into the DB, replacing all values.
@@ -207,28 +221,19 @@ def link_table(table, db):
 
 if __name__ == "__main__":
     # tests
-    con = sqlite3.connect(":memory:")
 
     title = 'exercises'
     fields = [
         Field('id', int, pk=True),
-        Field('lang_id', int),
         Field('title', str),
-        Field('desc', str),
-        Field('solution', str),
-        Field('user_id', int)
+        Field('isbn', int),
+        Field('condition', bool)
     ]
 
-    exercises_table = Table(title, fields)
+    books_table = Table('books', fields)
 
-    Exercise = link_table(exercises_table, con)
-    x = Exercise()
-    print x
-    x['id'] = 5
-    x['desc'] = 'hi'
-    print x
-    cur = con.cursor()
-    print cur.execute("SELECT * FROM exercises").fetchall()
-    cur.close()
+    con = sqlite3.connect("database.db")
+    Book = link_table(books_table, con)
+
+
     
-
