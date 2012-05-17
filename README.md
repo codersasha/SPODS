@@ -45,7 +45,7 @@ Congratulations! You've just created a database, in `database.db`, and are ready
 
 To add your first record, you can run something like:
 
-```
+```python
     >>> book = Book()
     >>> book
     {'id': 1, 'title': None, 'isbn': None, 'condition': None}
@@ -55,7 +55,7 @@ Now, when you modify your `book` variable, the changes will be reflected in your
 
 You can also access an existing book object by providing its ID:
 
-```
+```python
     >>> book.title = 'The Notebook'
     >>> book.title
     'The Notebook'
