@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Simple Python Object-Database Serialiser (SPODS)
 
 ## Why it rocks
@@ -124,9 +123,3 @@ If, for some reason, you need to ensure the row is synced, you can manually call
 ## That's it!
 
 Go make some cool software! :-)
-=======
-SPODS
-=====
-
-Simple Python Object-Database Serialiser: A lightweight database object serialiser for Python
->>>>>>> a259c4029d95505b32815b9921175b39cf17cee0
