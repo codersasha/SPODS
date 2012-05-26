@@ -187,7 +187,7 @@ To serve an API request, just call the `spods.serve_api` function with all the c
 
 `serve_api` will read the cookies and form data of the user requesting the API access, and return a string to be printed to the webpage.
 
-The API will either return a response code of '200 OK', '400 Bad Request' or '401 Unauthorized'.
+<!-- The API will either return a response code of '200 OK', '400 Bad Request' or '401 Unauthorized'. -->
 
 The resultant JSON contains 3 fields:
     * `status`, which is 0 on success, or nonzero on failure (positive on general error, negative on authorisation/permissions error)
@@ -282,8 +282,42 @@ Note that:
         * In fact, any CGI data, in general, is accepted
     * Unrecognised parameters are ignored
     
+### Working it in with jQuery
+
+An AJAX call from jQuery (or any javascript library, really) can be setup like so:
+
+```javascript
+    $.ajax('http://www.yourdomain.com/api.py', {
+        data: {
+            obj: 'books', // the thing we want to get
+            fetch: 'all', // how many we want
+            action: 'view', // what we want to do with them
+            
+            // filtering parameters
+            author_id: 7
+        },
+        success: function(json) {
+            if (json.status == 0) {
+                // success! do some stuff with the json
+                $.each(json.data, function(i, e) {
+                    alert("Book #" + i + " is called " + e.title + ".");
+                }
+            } else {
+                // error: something went wrong on the application side
+                // look at the 'error' field for details
+                alert("Error: " + json.error);
+            }
+        },
+        error: function() {
+            // something went wrong altogether: connection issues, etc
+            alert("Something went horribly wrong!");
+        }
+    );
+        
+```
+    
 ## That's it!
 
-You now know all there is to know about SPODS.
+You now know all there is to know about SPODS, and integrating it with your application.
 
 Go make some cool software! :-)
