@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/home/content/52/9354452/siteenv/bin/python2.7
 
 # use SQLite for now
 import sqlite3
@@ -118,6 +118,14 @@ class Table(object):
                 return True
         return False
 
+    def is_pk(self, field_title):
+        for field in self.fields:
+            if field.title == field_title:
+                if field.pk:
+                    return True
+                return False
+        return False
+
     def fks(self):
         return [x for x in self.fields if x.fk]
 
@@ -188,6 +196,7 @@ def link_table(table, db, clear_existing=False):
         def __getitem__(self, key):
             if not table.is_field(key):
                 # not a field... but is it one of the FKs?
+                # check if it's a known foreign key in this table
                 for field in table.fks():
                     # TODO: this comparison is iffy; if a table name has an underscore in it, this won't match the table's FK correctly
                     foreign_table_name = field.title.split('_')[0]
@@ -217,7 +226,7 @@ def link_table(table, db, clear_existing=False):
                 raise AttributeError(key)
             
             # update db & save
-            run_query("UPDATE %s SET %s = ? WHERE id = ?" % (table.title, key), (value, self.id))
+            run_query("UPDATE %s SET %s = ? WHERE %s = ?" % (table.title, table.pk.title, key), (value, self.id))
             self.data[key] = value
 
         def __delitem__(self, key):
@@ -225,8 +234,13 @@ def link_table(table, db, clear_existing=False):
                 # not a valid key
                 raise AttributeError(key)
 
-            run_query("UPDATE %s SET %s = NULL WHERE id = ? LIMIT 1" % (table.title, key), (self.id, ))
-            
+            # is this the PK? If so, delete the record
+            if table.is_pk(key):
+                run_query("DELETE FROM %s WHERE %s = ?" % (table.title, table.pk.title), (self.id, ))
+            else:
+                run_query("UPDATE %s SET %s = NULL WHERE %s = ? LIMIT 1" % (table.title, key, table.pk.title), (self.id, ))
+
+            # either way, set the key to none
             self[key] = None
 
         ## Initialiser
@@ -379,7 +393,7 @@ def link_table(table, db, clear_existing=False):
             return objs
             
         @staticmethod
-        def has_one(class_var, new_field_name = None):
+        def has_one(class_var, new_field_name = None, clear_existing = False):
             """Creates ownership of this class over another class.
 
             e.g. X.has_one(Y) means each instance of X has at most one instance of Y.
@@ -396,24 +410,165 @@ def link_table(table, db, clear_existing=False):
             new_field = Field(new_field_name, int, fk=class_var)
 
             # add the field to the DB
-            run_query(table.add_field_stmt(new_field))
+            try:
+                run_query(table.add_field_stmt(new_field))
+
+            except sqlite3.OperationalError:
+                
+                # column already exists
+                if clear_existing:
+                    # delete column and run it again
+                    # TODO
+                    pass
 
             # add column to all new object instances
             table.fields.append(new_field)
 
-        def has_many(class_var, new_field_name = None):
-            # TODO: stub
-            # the same as has_one, but in reverse
-            class_var.has_one(self)
-
     return LinkedClass
 
+MAX_LIMIT = 25
 
+def handle_request(cookie, data, classes):
+    """Given a list of classes, as well as the cookies and CGI form data,
+    responds to the given request, returning a Python object."""
+
+    result = { 'status': 0, 'error': '', 'data': None }
+
+    try:
+
+        # check they specified an object
+        if 'obj' not in data:
+            result['status'], result['error'] = (1, 'No objects specified.')
+            return result
+
+        # get the class they specified
+        specified_class = None
+        for c in classes:
+            if c.table.title == data['obj'].value:
+                specified_class = c
+
+        if specified_class == None:
+            # no class found
+            result['status'], result['error'] = (1, 'Invalid object specified.')
+            return result
+
+        # build up the options
+        if 'fetch' in data and data['fetch'].value.lower() == 'one':
+            # fetch one
+            start = 0
+            limit = 1
+        else:
+            # fetch all
+            start = 0
+            limit = MAX_LIMIT
+            if 'start' in data and data['start'].value.isdigit() and int(data['start'].value) >= 0:
+                start = int(data['start'].value)
+            if 'limit' in data and data['limit'].value.isdigit() and int(data['limit'].value) >= 0:
+                limit = int(data['limit'].value)
+            
+        action = 0 # view
+        if 'action' in data:
+            if data['action'].value.lower() == 'add': action = 1 # add
+            if data['action'].value.lower() == 'edit': action = 2 # change
+            if data['action'].value.lower() == 'delete': action = 3 # delete
+
+        # find the fields from the remaining arguments
+        # TODO: prevent fields from being called fetch, action or obj
+        field_values = {}
+        field_search_values = {}
+        for field in data:
+            if specified_class.table.is_field(field):
+                field_values[field] = data[field].value
+            elif specified_class.table.is_field(field.strip('*')):
+                field_search_values[field.strip('*')] = data[field].value
+
+        # perform the specified action
+        if action == 1:
+            # we're adding: get the fields together and build the object
+            new_obj = specified_class(**field_values)
+            result['data'] = [dict(new_obj)]
+
+        else:
+            # we need to get the objects to modify
+
+            if action != 2:
+                field_values['_start'] = start
+                field_values['_limit'] = limit
+                
+                # use the regular field values
+                objs = specified_class.get_all(**field_values)
+                result['data'] = [dict(obj) for obj in objs]
+
+                if action == 3:
+                    # delete the rows
+                    for obj in objs:
+                        del obj[specified_class.table.pk.title]
+            else:
+                field_search_values['_start'] = start
+                field_search_values['_limit'] = limit
+                
+                # use the asterisked fields for searching...
+                objs = specified_class.get_all(**field_search_values)
+
+                # ...and the regular fields for modifying
+                for obj in objs:
+                    for field in field_values:
+                        obj[field] = field_values[field]
+
+                # done
+                result['data'] = [dict(obj) for obj in objs]
+
+    except Exception, e:
+        result['status'], result['error'] = 2, "%s: %s" % (type(e).__name__, str(e))
+
+    return result
+
+def serve_api(*args):
+    """Given a list of LinkedClasses, reads the cookies and form data from the user and
+    tries to perform the specified request.
+
+    Returns a string, representing the content to print to the screen, which includes the
+    HTTP status response code, the cookie data, and the resulting JSON."""
+
+    from os import environ
+    from cgi import FieldStorage
+    from Cookie import SimpleCookie
+    from json import dumps
+
+    # TODO: remove this (for debugging only)!
+    from cgitb import enable as enable_debug; enable_debug()
+
+    # get cookies
+    cookie = SimpleCookie()
+    cookie_string = environ.get('HTTP_COOKIE')
+    if cookie_string:
+        cookie.load(cookie_string)
+
+    # get URL data
+    cgi_data = FieldStorage()
+
+    # handle request
+    result = handle_request(cookie, cgi_data, args)
+    status = result.get('status', 1)
+
+    # return appropriate response
+    response = ""
+    if cookie: response += str(cookie)
+
+    response += 'Status: '
+    if status > 0: response += '400 Bad Request\r\n'
+    elif status < 0: response += '401 Unauthorized\r\n'
+    else: response += '200 OK\r\n'
+    
+    response += "Content-Type: application/JSON\r\n\r\n"
+    if result: response += dumps(result)
+
+    return response
 
 
 
 if __name__ == "__main__":
-    con = sqlite3.connect("database2.db")
+    con = sqlite3.connect(":memory:")
 
     fields = [
         Field('id', int, pk=True),
@@ -433,14 +588,14 @@ if __name__ == "__main__":
     people_table = Table('person', fields)
     Person = link_table(people_table, con, clear_existing=True)
     
-    Person.has_one(Book)
+    Person.has_one(Book, clear_existing=True)
 
     people = [Person(name='Joe'), Person(name='Bob'), Person(name='Jill')]
     books = [Book(title='The Sea'), Book(title='A cool book'), Book(title='Aladdin')]
 
     people[0].book = books[0]
     
-    
+    print serve_api(Book, Person)
     
     
 

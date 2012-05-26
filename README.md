@@ -30,7 +30,7 @@ First, create a bunch of `Field` objects and store them in a `Table`:
     ...     Field('condition', bool)
     ... ]
     ... 
-    >>> books_table = Table('books', fields)
+    >>> books_table = Table('book', fields)
 ```
     
 Now it's time to link our table to our database, and start making objects. To do this, simply connect to your database and call the `create_linked_class(table, connection)` function:
@@ -38,10 +38,12 @@ Now it's time to link our table to our database, and start making objects. To do
 ```python
     >>> import sqlite3
     >>> con = sqlite3.connect("database.db")
-    >>> Book = link_table(books_table, con)
+    >>> Book = spods.link_table(books_table, con)
 ```
 
 Congratulations! You've just created a database, in `database.db`, and are ready to start storing `Book`s in it. SPODS will automatically create the Books table for you if it doesn't exist.
+
+You can also add the flag `clear_existing=True` to `spods.link_table()` to delete any table already in the database with that name.
 
 To add your first record, you can run something like:
 
@@ -116,6 +118,16 @@ Or, equivalently:
     >>> x.id == None
     True
 ```
+
+### Deleting records
+
+To delete an item, just delete its primary key:
+
+```python
+    >>> del x.id; del x
+```
+
+**Warning:** Do NOT try to access an item after deleting its primary key. The safest thing to do is delete the object straight away!
     
 ## Syncing with the DB
 
@@ -138,6 +150,8 @@ Relations in SPODS are pretty easy, too. To make a one-to-many relation, use the
 
 where `Author` was created using the `link_table()` method, as before.
 
+Similarly, the `has_one()` function can take the flag `clear_existing=True` to force creating a new column.
+
 Now, you can relate two objects using their primary key:
 
 ```python
@@ -150,7 +164,7 @@ Now, you can relate two objects using their primary key:
 
 ... And access each object through the other one!
 
-```
+```python
     >>> book['author'].name
     'J K Rowling'
     >>> book['author'].id
@@ -159,6 +173,117 @@ Now, you can relate two objects using their primary key:
 
 **NOTE: The current version of SPODS does _NOT_ support attribute access (e.g. `b.author`, in the above example) for relationships. We are working on fixing this, but for now, only dictionary access (e.g. `b['author']`) is supported.**
     
+## The JSON API
+
+Now comes the real reason why you'd want to use SPODS. SPODS comes with a jokingly-easy, automatically generated JSON API for use in any web application.
+
+To serve an API request, just call the `spods.serve_api` function with all the classes you want to make accessible:
+
+```python
+    >>> result = spods.serve_api(Book, Author)
+    >>> result
+    ...
+```
+
+`serve_api` will read the cookies and form data of the user requesting the API access, and return a string to be printed to the webpage.
+
+The API will either return a response code of '200 OK', '400 Bad Request' or '401 Unauthorized'.
+
+The resultant JSON contains 3 fields:
+    * `status`, which is 0 on success, or nonzero on failure (positive on general error, negative on authorisation/permissions error)
+    * `error`, which contains an error message describing the error
+    * `data`, which contains a list of the objects (in dictionary format) affected by the request
+        * e.g. [{"id": 2, "title": "Justice is served", "author_id": 1}, {"id": 3, "title": "The best day on Earth", "author_id": 2}]
+    
+API requests are in the form (`{` brackets indicate a parameter, '(' brackets indicate a default value, '[' brackets indicate an optional value):
+
+```
+    http://www.yourdomain.com/api.py?
+        obj={ <table_name> }
+        [&action={ (view) | add | edit | delete }]
+        [&<field>={ <value> }]
+        
+        if action!=add:
+            [&fetch={ (all) | one }]
+        
+        if fetch=all:
+            [&start={ (0) | number >= 0 }]
+            [&limit={ (<max_limit> | number >= 0 }]
+```
+
+All reserved request values (all but the ones in `<`'s) are case-insensitive. Table names, field names and field values are case-sensitive.
+
+For the `action=edit` request, fields to _search_ for **must begin (or end) with at least one asterisk \***, whereas fields to _change_ to can stay the same.
+
+### Editing records
+
+For example, to rename all books called 'The Wizard of Oz' to 'The Witch of Oz', you could use:
+
+```
+    http://www.yourdomain.com/api.py?
+        obj=books
+        &fetch=one
+        &action=edit
+        &*name='The Wizard of Oz'
+        &name='The Witch of Oz'
+```
+
+Equivalently, line 5 could be:
+
+```
+    &name*='The Wizard of Oz'
+```
+
+or, in fact, any of:
+
+```
+    &*name*='The Wizard of Oz'
+    &***name**='The Wizard of Oz'
+    &*****name****='The Wizard of Oz'
+```
+
+You get the point.
+
+### Deleting records
+
+To delete the book 'The Wizard of Oz', you could use:
+
+```
+    http://www.yourdomain.com/api.py?
+        obj=books
+        &fetch=one
+        &action=delete
+        &name='The Wizard of Oz'
+        
+```
+
+### Viewing records
+
+Similarly, to list all books with the author with ID 7, you could use:
+
+```
+    http://www.yourdomain.com/api.py?
+        obj=books
+        &fetch=all
+        &action=view
+        &author_id=7
+```
+
+or just:
+
+```
+    http://www.yourdomain.com/api.py?
+        obj=books
+        &author_id=7
+```
+
+Note that:
+    * POST data is also accepted, not just GET data
+        * In fact, any CGI data, in general, is accepted
+    * Unrecognised parameters are ignored
+    
 ## That's it!
+
+You now know all there is to know about SPODS.
 
 Go make some cool software! :-)
