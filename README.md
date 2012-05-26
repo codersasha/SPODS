@@ -207,10 +207,10 @@ API requests are in the form (`{` brackets indicate a parameter, '(' brackets in
         
         if action!=add:
             [&fetch={ (all) | one }]
-        
-        if fetch=all:
-            [&start={ (0) | number >= 0 }]
-            [&limit={ (<max_limit> | number >= 0 }]
+            
+            if fetch=all:
+                [&start={ (0) | number >= 0 }]
+                [&limit={ (<max_limit> | number >= 0 }]
 ```
 
 All reserved request values (all but the ones in `<`'s) are case-insensitive. Table names, field names and field values are case-sensitive.
@@ -290,6 +290,7 @@ An AJAX call from jQuery (or any javascript library, really) can be setup like s
 
 ```javascript
     $.ajax('http://www.yourdomain.com/api.py', {
+        dataType: 'json',
         data: {
             obj: 'books', // the thing we want to get
             fetch: 'all', // how many we want
