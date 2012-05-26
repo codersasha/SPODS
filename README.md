@@ -301,7 +301,7 @@ An AJAX call from jQuery (or any javascript library, really) can be setup like s
                 // success! do some stuff with the json
                 $.each(json.data, function(i, e) {
                     alert("Book #" + i + " is called " + e.title + ".");
-                }
+                });
             } else {
                 // error: something went wrong on the application side
                 // look at the 'error' field for details
@@ -312,7 +312,7 @@ An AJAX call from jQuery (or any javascript library, really) can be setup like s
             // something went wrong altogether: connection issues, etc
             alert("Something went horribly wrong!");
         }
-    );
+    });
         
 ```
     
