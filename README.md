@@ -64,6 +64,14 @@ You can also access an existing book object by providing its ID:
     {'id': 1, 'title': 'The Notebook', 'isbn': None, 'condition': None}
 ```
 
+You can also create new objects by simply not specifying the id:
+
+```python
+    >>> book = Book(title='Atlas')
+    >>> book.title
+    'Atlas'
+```
+
 ## Using SPODS objects
 
 You can use all the usual getter and setter methods for attributes, such as:
@@ -119,6 +127,37 @@ If, for some reason, you need to ensure the row is synced, you can manually call
     >>> x.read_sync() # reads all values out of the DB, replacing X's local copies
     >>> x.write_sync() # writes all values into the DB, replacing the DB's values
 ```
+
+## Relations
+
+Relations in SPODS are pretty easy, too. To make a one-to-many relation, use the syntax:
+
+```python
+    >>> Book.has_one(Author)
+```
+
+where `Author` was created using the `link_table()` method, as before.
+
+Now, you can relate two objects using their primary key:
+
+```python
+    >>> book = Book(title='Harry Potter')
+    >>> author = Author(name='J K Rowling')
+    >>> author.id
+    1
+    >>> b.author_id = 1
+```
+
+... And access each object through the other one!
+
+```
+    >>> book['author'].name
+    'J K Rowling'
+    >>> book['author'].id
+    1
+```
+
+**NOTE: The current version of SPODS does _NOT_ support attribute access (e.g. `b.author`, in the above example) for relationships. We are working on fixing this, but for now, only dictionary access (e.g. `b['author']`) is supported.**
     
 ## That's it!
 
