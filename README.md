@@ -164,7 +164,7 @@ Now, you can relate two objects using their primary key:
     >>> b.author_id = 1
 ```
 
-... And access each object through the other one!
+... And access the related object through the first one!
 
 ```python
     >>> book['author'].name
@@ -192,10 +192,11 @@ To serve an API request, just call the `spods.serve_api` function with all the c
 <!-- The API will either return a response code of '200 OK', '400 Bad Request' or '401 Unauthorized'. -->
 
 The resultant JSON contains 3 fields:
-    * `status`, which is 0 on success, or nonzero on failure (positive on general error, negative on authorisation/permissions error)
-    * `error`, which contains an error message describing the error
-    * `data`, which contains a list of the objects (in dictionary format) affected by the request
-        * e.g. [{"id": 2, "title": "Justice is served", "author_id": 1}, {"id": 3, "title": "The best day on Earth", "author_id": 2}]
+
+* `status`, which is 0 on success, or nonzero on failure (positive on general error, negative on authorisation/permissions error)
+* `error`, which contains an error message describing the error
+* `data`, which contains a list of the objects (in dictionary format) affected by the request
+    * e.g. [{"id": 2, "title": "Justice is served", "author_id": 1}, {"id": 3, "title": "The best day on Earth", "author_id": 2}]
     
 API requests are in the form (`{` brackets indicate a parameter, '(' brackets indicate a default value, '[' brackets indicate an optional value):
 
@@ -343,11 +344,11 @@ It's easy. First, define your function:
 (Note how the function takes *keyword arguments `\*\*kw`*, and returns a *serialisable Python object*. This is important for the JSON conversion.)
 
 The `\*\*kw`* argument is a dictionary of all key-value pairs from the CGI input data (e.g. the URL). There are also some special values:
-    * `'_cookie'` is the cookie object from the user (that will be sent back to the user if it is non-empty)
-    * `'_classes'` is a list of all class objects that were passed into `serve_api()`
-        * For example, to check if your API is serving `Person` objects, you can check `if Person in kw['_classes']`
-        * Another good use of this is to _not_ serve a particular object through your API, and _force_ access to it through custom functions
-            * For example, providing access to `User` objects (which may contain passwords and the like) could pose a security risk
+* `'_cookie'` is the cookie object from the user (that will be sent back to the user if it is non-empty)
+* `'_classes'` is a list of all class objects that were passed into `serve_api()`
+    * For example, to check if your API is serving `Person` objects, you can check `if Person in kw['_classes']`
+    * Another good use of this is to _not_ serve a particular object through your API, and _force_ access to it through custom functions
+        * For example, providing access to `User` objects (which may contain passwords and the like) could pose a security risk
 
 Now, when registering your API, simply pass in your function (as well as any classes you'd like to respond to):
 
