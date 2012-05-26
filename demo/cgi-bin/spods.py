@@ -613,11 +613,6 @@ if __name__ == "__main__":
     
     Person.has_one(Book)
 
-    people = [Person(name='Joe'), Person(name='Bob'), Person(name='Jill')]
-    books = [Book(title='The Sea', isbn=10324, condition='Excellent'), Book(title='A cool book'), Book(title='Aladdin', condition='Good')]
-
-    people[0].book = books[0]
-
     def check_credit(**kw):
         if 'credit_card' not in kw or not kw['credit_card'].isdigit():
             raise Exception("Please enter a valid credit card number.")
