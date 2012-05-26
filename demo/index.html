@@ -1,0 +1,292 @@
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>SPODS Example</title>
+
+
+        <!-- jQuery: http://jquery.com/ -->
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+
+        <!-- Twitter Bootstrap: http://twitter.github.com/bootstrap/ -->
+        <link href="http://twitter.github.com/bootstrap/assets/css/bootstrap.css" rel="stylesheet" />
+        <link href="http://twitter.github.com/bootstrap/assets/js/bootstrap.js" rel="stylesheet" />
+
+        <style>
+            #books-icon {
+                background-image: url('http://www.freeiconsweb.com/site-images/Large/free_business_icons.jpg');
+                /* background-position */
+                display: block;
+                float: left;
+                width: 110px;
+                height: 80px;
+            }
+        </style>
+
+        <script>
+            $(function() {
+                
+                // book list refresh button
+                $("#book-list-refresh-button").click(function() {
+                    // fade out existing table
+                    $("#books-list").fadeOut();
+                    $("#book-list-throbber").fadeIn();
+                    $.ajax('/cgi-bin/spods.py', {
+                        dataType: 'json',
+                        data: {
+                            obj: 'book', // the thing we want to get
+                            action: 'get', // what we want to do with them
+                            fetch: 'all', // how many we want
+                            
+                            start: 0, // the first one to get
+                            limit: 10 // the total number to get
+                        },
+                        success: function(json) {
+                            if (json.status == 0) {
+                                // success! do some stuff with the json
+                                $("#books-list tbody").empty();
+                            
+                                $.each(json.data, function(i, e) {
+                                    var tr = $("<tr />")
+                                    .append($("<td />").text(e.id))
+                                    .append($("<td />").text(e.title))
+                                    .append($("<td />").text(e.isbn))
+                                    .append($("<td />").text(e.condition))
+                                    .append( $("<td />").append(
+                                    // delete button
+                                    $("<button class='btn' />")
+                                    .append($("<icon class='icon-trash' />"))
+                                    .click(function() {
+                                        $.ajax('/cgi-bin/spods.py', {
+                                            dataType: 'json',
+                                            data: {
+                                                obj: 'book', // the thing we want to get
+                                                action: 'delete', // what we want to do with them
+                                                fetch: 'one', // how many we want
+                                            
+                                                // filters
+                                                id: e.id
+                                            },
+                                            success: function(json) {
+                                                if (json.status == 0) {
+                                                    tr.fadeOut(function() {
+                                                        tr.remove();
+                                                    });
+                                                }
+                                            }
+                                        })
+                                    })
+                                ))
+                                    .append( $("<td />").append(
+                                    // edit button
+                                    $("<button class='btn' />")
+                                    .append($("<icon class='icon-pencil' />"))
+                                    .click(function() {
+                                        // fill up existing book form
+                                        $("#existing-book-title").val(e.title)
+                                        $("#existing-book-isbn").val(e.isbn)
+                                        $("#existing-book-condition").val(e.condition)
+
+                                        // register click event
+                                        $("#existing-book-save-button").off('click');
+                                        $("#existing-book-save-button").click(function(ev) {
+                                            ev.preventDefault();
+                                    
+                                            $("#existing-book-form-throbber").fadeIn();
+                                            $.ajax('/cgi-bin/spods.py', {
+                                                dataType: 'json',
+                                                data: {
+                                                    obj: 'book', // the thing we want to get
+                                                    action: 'edit', // what we want to do with them
+
+                                                    // old object values
+                                                    '*id': e.id,
+
+                                                    // new object values
+                                                    title: $("#existing-book-title").val(),
+                                                    isbn: $("#existing-book-isbn").val(),
+                                                    condition: $("#existing-book-condition").val()
+                                                },
+                                                success: function(json) {
+                                                    if (json.status == 0) {
+                                                        // success! do some stuff with the json
+                                                        $.each(json.data, function(i, e) {
+                                                            alert("You edited the book with ID " + e.id + " to have title " + e.title + ", ISBN " + e.isbn + " and condition " + e.condition + ".");
+                                                        });
+                                                    } else {
+                                                        // error: something went wrong on the application side
+                                                        // look at the 'error' field for details
+                                                        alert("Error: " + json.error);
+                                                    }
+                                                },
+                                                error: function(a, b, c) {
+                                                    // something went wrong altogether: connection issues, etc
+                                                    alert("Something went horribly wrong!");
+                                                },
+                                                complete: function() {
+                                                    $("#existing-book-form-throbber").fadeOut();
+                                                }
+                                            });
+                                        });
+
+                                        // focus form
+                                        $("#existing-book-title").focus();
+                                    })
+                                ))
+    
+                                    $("#books-list tbody").append(tr);
+                                });
+
+                                // fade table back in
+                                $("#books-list").fadeIn();
+                            } else {
+                                // error: something went wrong on the application side
+                                // look at the 'error' field for details
+                                alert("Error: " + json.error);
+                            }
+                        },
+                        error: function(a, b, c) {
+                            // something went wrong altogether: connection issues, etc
+                            alert("Something went horribly wrong!");
+                        },
+                        complete: function() {
+                            $("#book-list-throbber").fadeOut();
+                        }
+                    });
+                })
+                // click it now to refresh the list on page load
+                .click();
+
+                // new book save button
+                $("#new-book-save-button").click(function(e) {
+                    e.preventDefault();
+
+                    $("#new-book-form-throbber").fadeIn();
+                    $.ajax('/cgi-bin/spods.py', {
+                        dataType: 'json',
+                        data: {
+                            obj: 'book', // the thing we want to get
+                            action: 'add', // what we want to do with them
+                            
+                            // new object values
+                            title: $("#new-book-title").val(),
+                            isbn: $("#new-book-isbn").val(),
+                            condition: $("#new-book-condition").val()
+                        },
+                        success: function(json) {
+                            if (json.status == 0) {
+                                // success! do some stuff with the json
+                                $.each(json.data, function(i, e) {
+                                    alert("You added a new book, with ID " + e.id + ", title " + e.title + ", ISBN " + e.isbn + " and condition " + e.condition + ".");
+                                });
+                            } else {
+                                // error: something went wrong on the application side
+                                // look at the 'error' field for details
+                                alert("Error: " + json.error);
+                            }
+                        },
+                        error: function(a, b, c) {
+                            // something went wrong altogether: connection issues, etc
+                            alert("Something went horribly wrong!");
+                        },
+                        complete: function() {
+                            $("#new-book-form-throbber").fadeOut();
+                        }
+                    });
+                    
+                })
+                
+                // new book clear button
+                $("#new-book-clear-button").click(function() {
+                    // clear all form values
+                    $("#new-book-form").clear();
+                })
+                
+            })
+        </script>
+
+    </head>
+    <body>
+
+        <div class="container">
+            <!-- header -->
+            <div class="page-header">
+                <div id="books-icon"></div>
+                <hr />
+                <h1>My Book Collection</h1>
+            </div>
+
+            <button class="btn" id="book-list-refresh-button"><i class="icon-refresh"></i> Refresh</button> <img src="http://files.quickmediasolutions.com/throbber.svg" id="book-list-throbber" class="hide"/>
+
+
+            <table id="books-list" class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Title</th>
+                        <th>ISBN</th>
+                        <th>Condition</th>
+                        <th><i class="icon-trash"></i></th>
+                        <th><i class="icon-pencil"></i></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- books go here -->
+                </tbody>
+            </table>
+
+            <div class="row">
+                <div class="span6">
+            <!-- new book form -->
+            <form id="new-book-form">
+                <h2>New Book</h2>
+                <label>Title</label>
+                <input type="text" class="span3" placeholder="Title" id="new-book-title">
+                <label>ISBN</label>
+                <input type="text" class="span3" placeholder="ISBN" id="new-book-isbn">
+                <label>Condition</label>
+                <select id="new-book-condition">
+                    <option>Excellent</option>
+                    <option>Good</option>
+                    <option>Average</option>
+                    <option>Poor</option>
+                </select>
+
+                <div class="form-actions">
+                    <button id="new-book-save-button" type="submit" class="btn btn-primary"><i class="icon-plus icon-white"></i> Add</button>
+                    <button id="new-book-clear-button" class="btn">Cancel</button>
+                    <img src="http://files.quickmediasolutions.com/throbber.svg" class="hide" id="new-book-form-throbber" />
+                </div>
+            </form>
+
+                </div><div class="span6">
+            
+            <!-- existing book form -->
+            <form id="existing-book-form">
+                <h2>Edit Book</h2>
+                <label>Title</label>
+                <input type="text" class="span3" placeholder="Title" id="existing-book-title">
+                <label>ISBN</label>
+                <input type="text" class="span3" placeholder="ISBN" id="existing-book-isbn">
+                <label>Condition</label>
+                <select id="existing-book-condition">
+                    <option>Excellent</option>
+                    <option>Good</option>
+                    <option>Average</option>
+                    <option>Poor</option>
+                </select>
+
+                <div class="form-actions">
+                    <button id="existing-book-save-button" type="submit" class="btn btn-success"><i class="icon-ok icon-white"></i> Save</button>
+                    <button id="existing-book-clear-button" class="btn">Cancel</button>
+                    <img src="http://files.quickmediasolutions.com/throbber.svg" class="hide" id="existing-book-form-throbber" />
+                </div>
+            </form>
+
+                </div>
+            </div>
+            
+        </div> <!-- container -->
+    </body>
+</html>
+

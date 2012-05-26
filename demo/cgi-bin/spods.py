@@ -1,4 +1,4 @@
-#!/home/content/52/9354452/siteenv/bin/python2.7
+#!/usr/bin/python
 
 # use SQLite for now
 import sqlite3
@@ -226,7 +226,7 @@ def link_table(table, db, clear_existing=False):
                 raise AttributeError(key)
             
             # update db & save
-            run_query("UPDATE %s SET %s = ? WHERE %s = ?" % (table.title, table.pk.title, key), (value, self.id))
+            run_query("UPDATE %s SET %s = ? WHERE %s = ?" % (table.title, key, table.pk.title), (value, self.id))
             self.data[key] = value
 
         def __delitem__(self, key):
@@ -591,16 +591,16 @@ def serve_api(*args):
 
 
 if __name__ == "__main__":
-    con = sqlite3.connect(":memory:")
+    con = sqlite3.connect("test.db")
 
     fields = [
         Field('id', int, pk=True),
         Field('title', str),
-        Field('isbn', int),
-        Field('condition', bool)
+        Field('isbn', str),
+        Field('condition', str)
     ]
     books_table = Table('book', fields)
-    Book = link_table(books_table, con, clear_existing=True)
+    Book = link_table(books_table, con)
 
     fields = [
         Field('id', int, pk=True),
@@ -609,12 +609,12 @@ if __name__ == "__main__":
         Field('happy', bool)
     ]
     people_table = Table('person', fields)
-    Person = link_table(people_table, con, clear_existing=True)
+    Person = link_table(people_table, con)
     
-    Person.has_one(Book, clear_existing=True)
+    Person.has_one(Book)
 
     people = [Person(name='Joe'), Person(name='Bob'), Person(name='Jill')]
-    books = [Book(title='The Sea'), Book(title='A cool book'), Book(title='Aladdin')]
+    books = [Book(title='The Sea', isbn=10324, condition='Excellent'), Book(title='A cool book'), Book(title='Aladdin', condition='Good')]
 
     people[0].book = books[0]
 
@@ -627,7 +627,6 @@ if __name__ == "__main__":
         return {'sum': credit_sum}
     
     print serve_api(Book, Person, check_credit)
-    
     
 
     
