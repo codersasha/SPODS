@@ -196,9 +196,11 @@ The resultant JSON contains 3 fields:
 * `status`, which is 0 on success, or nonzero on failure (positive on general error, negative on authorisation/permissions error)
 * `error`, which contains an error message describing the error
 * `data`, which contains a list of the objects (in dictionary format) affected by the request
-    * e.g. [{"id": 2, "title": "Justice is served", "author_id": 1}, {"id": 3, "title": "The best day on Earth", "author_id": 2}]
+    * e.g. `[{"id": 2, "title": "Justice is served", "author_id": 1}, {"id": 3, "title": "The best day on Earth", "author_id": 2}]`
     
-API requests are in the form (`{` brackets indicate a parameter, '(' brackets indicate a default value, '[' brackets indicate an optional value):
+API requests are in the following format:
+
+(`{}` brackets indicate a parameter, `()` brackets indicate a default value, `[]` brackets indicate an optional value):
 
 ```
     http://www.yourdomain.com/api.py?
@@ -214,9 +216,9 @@ API requests are in the form (`{` brackets indicate a parameter, '(' brackets in
                 [&limit={ (<max_limit> | number >= 0 }]
 ```
 
-All reserved request values (all but the ones in `<`'s) are case-insensitive. Table names, field names and field values are case-sensitive.
+All reserved request values (all but the ones in `<`'s) are case-**in**sensitive. Table names, field names and field values are case-sensitive.
 
-For the `action=edit` request, fields to _search_ for **must begin (or end) with at least one asterisk \***, whereas fields to _change_ to can stay the same.
+For the `action=edit` request, fields to _search_ for must _begin (or end) with at least one asterisk \*_, whereas fields to _change_ to can remain normal.
 
 ### Editing records
 
@@ -262,7 +264,7 @@ To delete the book 'The Wizard of Oz', you could use:
 
 ### Viewing records
 
-Similarly, to list all books with the author with ID 7, you could use:
+Similarly, to list all books with author ID 7, you could use:
 
 ```
     http://www.yourdomain.com/api.py?
@@ -281,13 +283,13 @@ or just:
 ```
 
 Note that:
-    * POST data is also accepted, not just GET data
-        * In fact, any CGI data, in general, is accepted
-    * Unrecognised parameters are ignored
+* POST data is also accepted, not just GET data
+    * In fact, any CGI data, in general, is accepted
+* Unrecognised parameters are ignored
     
 ### Working it in with jQuery
 
-An AJAX call from jQuery (or any javascript library, really) can be setup like so:
+An AJAX call from jQuery (or any javascript library, really) can be setup pretty easily like so:
 
 ```javascript
     $.ajax('http://www.yourdomain.com/api.py', {
@@ -341,14 +343,14 @@ It's easy. First, define your function:
     ... 
 ```
 
-(Note how the function takes *keyword arguments `\*\*kw`*, and returns a *serialisable Python object*. This is important for the JSON conversion.)
+(Note how the function takes *keyword arguments `**kw`*, and returns a *serialisable Python object*. This is important for the JSON conversion.)
 
-The `\*\*kw`* argument is a dictionary of all key-value pairs from the CGI input data (e.g. the URL). There are also some special values:
+The `**kw`* argument is a dictionary of all key-value pairs from the CGI input data (e.g. the URL). There are also some special values:
 * `'_cookie'` is the cookie object from the user (that will be sent back to the user if it is non-empty)
 * `'_classes'` is a list of all class objects that were passed into `serve_api()`
     * For example, to check if your API is serving `Person` objects, you can check `if Person in kw['_classes']`
     * Another good use of this is to _not_ serve a particular object through your API, and _force_ access to it through custom functions
-        * For example, providing access to `User` objects (which may contain passwords and the like) could pose a security risk
+        * For example, providing default API access to `User` objects (which may contain passwords and the like) could pose a security risk
 
 Now, when registering your API, simply pass in your function (as well as any classes you'd like to respond to):
 
