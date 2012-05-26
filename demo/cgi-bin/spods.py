@@ -444,8 +444,30 @@ def handle_request(cookie, data, classes):
         # get the class they specified
         specified_class = None
         for c in classes:
-            if c.table.title == data['obj'].value:
-                specified_class = c
+            if c.__name__ == data['obj'].value:
+                # custom function
+
+                # get other URL params
+                params = {}
+                for field in data:
+                    params[field] = data[field].value
+
+                # send special params
+                params['_cookie'] = cookie
+                params['_classes'] = classes
+
+                # call function
+                result['data'] = c(**params)
+
+                # done
+                return result
+            else:
+                try:
+                    if c.table.title == data['obj'].value:
+                        specified_class = c
+                        break
+                except:
+                    continue
 
         if specified_class == None:
             # no class found
@@ -555,10 +577,11 @@ def serve_api(*args):
     response = ""
     if cookie: response += str(cookie)
 
-    response += 'Status: '
-    if status > 0: response += '400 Bad Request\r\n'
-    elif status < 0: response += '401 Unauthorized\r\n'
-    else: response += '200 OK\r\n'
+    # TODO: get the status to return appropriately: is this possible as a CGI script?
+    # response += 'Status: '
+    # if status > 0: response += '400 Bad Request\r\n'
+    # if status < 0: response += '401 Unauthorized\r\n'
+    # se: response += '200 OK\r\n'
     
     response += "Content-Type: application/JSON\r\n\r\n"
     if result: response += dumps(result)
@@ -594,8 +617,16 @@ if __name__ == "__main__":
     books = [Book(title='The Sea'), Book(title='A cool book'), Book(title='Aladdin')]
 
     people[0].book = books[0]
+
+    def check_credit(**kw):
+        if 'credit_card' not in kw or not kw['credit_card'].isdigit():
+            raise Exception("Please enter a valid credit card number.")
+        credit_sum = 0
+        for digit in kw['credit_card']:
+            credit_sum += int(digit)
+        return {'sum': credit_sum}
     
-    print serve_api(Book, Person)
+    print serve_api(Book, Person, check_credit)
     
     
 

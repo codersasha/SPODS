@@ -7,6 +7,8 @@ have to worry about SQL injection, transaction issues, and connection problems.
 
 With SPODS, there is finally an alternative. SPODS is a simple, lightweight, easy to use alternative to heavy serialisation libraries. SPODS also provides a great way to access generic Python objects.
 
+And now, SPODS even gives you a _free_ JSON interface to your DB through a CGI script.
+
 ## Getting started
 
 First, copy spods.py to the directory you want to use it in.
@@ -315,7 +317,63 @@ An AJAX call from jQuery (or any javascript library, really) can be setup like s
     });
         
 ```
-    
+
+### Advanced options
+
+In a real application, we often need more than just basic access to fields. What we need is a customisable interface that allows for all kinds of extensions, and doesn't break the internals. Luckily for you, SPODS is great at handling customisations.
+
+#### Custom API functions
+
+Sometimes, you may want to use your JSON API for things other than directly accessing database fields. Or, you might want to write your own API functions that still have access to the data, but perform a custom action. For this, you can use **custom API functions**.
+
+It's easy. First, define your function:
+
+```python
+    >>> def credit_checksum(**kw):
+    ...     if 'credit_card' not in kw or not kw['credit_card'].isdigit():
+    ...         raise Exception("Please enter a valid credit card number.")
+    ...     credit_sum = 0
+    ...     for digit in kw['credit_card']:
+    ...         credit_sum += int(digit)
+    ...     return {'sum': credit_sum}
+    ... 
+```
+
+(Note how the function takes *keyword arguments `\*\*kw`*, and returns a *serialisable Python object*. This is important for the JSON conversion.)
+
+The `\*\*kw`* argument is a dictionary of all key-value pairs from the CGI input data (e.g. the URL). There are also some special values:
+    * `'_cookie'` is the cookie object from the user (that will be sent back to the user if it is non-empty)
+    * `'_classes'` is a list of all class objects that were passed into `serve_api()`
+        * For example, to check if your API is serving `Person` objects, you can check `if Person in kw['_classes']`
+        * Another good use of this is to _not_ serve a particular object through your API, and _force_ access to it through custom functions
+            * For example, providing access to `User` objects (which may contain passwords and the like) could pose a security risk
+
+Now, when registering your API, simply pass in your function (as well as any classes you'd like to respond to):
+
+```python
+    >>> result = spods.serve_api(Book, Author, credit_checksum)
+    >>> result
+    ...
+```
+
+You can now call your function by specifying it as the `obj` parameter in the URL:
+
+```
+    http://www.yourdomain.com/api.py?
+        obj=credit_checksum
+        &credit_card=123492384342
+```
+
+And the response would look like:
+
+```json
+    {"status": 0, "error": "", "data": {"sum": 45}}
+```
+
+Any `Exception`s raised during the functions execution will be translated into error codes & error messages in the returned JSON.
+
+Similarly, whatever is returned from your function will be saved in the `data` field of the JSON response.
+
 ## That's it!
 
 You now know all there is to know about SPODS, and integrating it with your application.
