@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
-import sqlite3
 from spods import *
+import sqlite3
 
 con = sqlite3.connect("test.db")
 
