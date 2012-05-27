@@ -31,7 +31,7 @@
                     // fade out existing table
                     $("#books-list").fadeOut();
                     $("#book-list-throbber").fadeIn();
-                    $.ajax('/cgi-bin/spods.py', {
+                    $.ajax('/cgi-bin/api.py', {
                         dataType: 'json',
                         data: {
                             obj: 'book', // the thing we want to get
@@ -57,7 +57,7 @@
                                     $("<button class='btn' />")
                                     .append($("<icon class='icon-trash' />"))
                                     .click(function() {
-                                        $.ajax('/cgi-bin/spods.py', {
+                                        $.ajax('/cgi-bin/api.py', {
                                             dataType: 'json',
                                             data: {
                                                 obj: 'book', // the thing we want to get
@@ -93,7 +93,7 @@
                                             ev.preventDefault();
                                     
                                             $("#existing-book-form-throbber").fadeIn();
-                                            $.ajax('/cgi-bin/spods.py', {
+                                            $.ajax('/cgi-bin/api.py', {
                                                 dataType: 'json',
                                                 data: {
                                                     obj: 'book', // the thing we want to get
@@ -162,7 +162,7 @@
                     e.preventDefault();
 
                     $("#new-book-form-throbber").fadeIn();
-                    $.ajax('/cgi-bin/spods.py', {
+                    $.ajax('/cgi-bin/api.py', {
                         dataType: 'json',
                         data: {
                             obj: 'book', // the thing we want to get

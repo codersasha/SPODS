@@ -1,28 +1,24 @@
 #!/usr/bin/env python
 
 from setuptools import setup, find_packages
-import sys, os
+setup(
+    name = "SPODS",
+    version = "0.4",
+    scripts = [],
 
-version = '0.4'
+    packages=['spods'],
+    namespace_packages=['spods'],
+    package_dir={'spods': 'spods'},    
 
-setup(name='SPODS',
-      version=version,
-      description="A lightweight database object serialiser for Python.",
-      long_description="""\
-""",
-      classifiers=["Topic :: Software Development :: Libraries :: Python Modules"], # Get strings from http://pypi.python.org/pypi?%3Aaction=list_classifiers
-      keywords='',
-      author='Sasha Bermeister',
-      author_email='sbermeister@gmail.com',
-      url='https://github.com/sbermeister/SPODS/',
-      license='',
-      packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
-      include_package_data=True,
-      zip_safe=False,
-      install_requires=[
-          # -*- Extra requirements: -*-
-      ],
-      entry_points="""
-      # -*- Entry points: -*-
-      """,
-      )
+    # metadata for upload to PyPI
+    author = "Sasha Bermeister",
+    author_email = "sbermeister@gmail.com",
+    description = "A lightweight database object serializer for Python",
+    license = "",
+    keywords = "SQL object serailizer ORM map sqlite mysql postgresql API CGI",
+    url = "https://github.com/sbermeister/SPODS/",   # project home page, if any
+    long_description=open('README.md').read(),
+    classifiers = [
+        "Topic :: Software Development :: Libraries :: Python Modules"
+    ],
+)

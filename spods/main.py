@@ -150,7 +150,7 @@ def link_table(table, db, clear_existing=False):
     db.row_factory = sqlite3.Row
 
     # turn on autocommits
-    con.isolation_level = None
+    db.isolation_level = None
 
     # clear the table, if we want
     if clear_existing:
