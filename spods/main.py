@@ -220,10 +220,28 @@ def link_table(table, db, clear_existing=False):
             return self.data[key]
 
         def __setitem__(self, key, value):
-            if not table.is_field(key):
+            # check if we're assigning to an item
+            # TODO: this is dodgy, just checks if the class has attribute 'table'
+            if hasattr(type(value), 'table'):
+                # is this a valid link? (e.g. x['book'] is going to be stored in table 'book')
+                if key != type(value).table.title:
+                    raise AttributeError(key + " is not a valid type for table " + type(value).table.title)
+
+                # get the foreign key we need to look for
+                foreign_pk_field = type(value).table.pk.title
+                foreign_key_name = type(value).table.title + '_' + foreign_pk_field
+                if foreign_key_name not in self.data:
+                    raise AttributeError("Required foreign key " + foreign_key_name + " not found. Have you linked the classes using .has_one()?")
+
+                # overwrite the foreign key (recursive call)
+                self[foreign_key_name] = value[foreign_pk_field]
+                return
+            
+            elif not table.is_field(key):
                 # not a valid key
                 # TODO: not working?
                 raise AttributeError(key)
+                return
             
             # update db & save
             run_query("UPDATE %s SET %s = ? WHERE %s = ?" % (table.title, key, table.pk.title), (value, self.id))

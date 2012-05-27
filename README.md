@@ -173,7 +173,21 @@ Now, you can relate two objects using their primary key:
     1
 ```
 
+You can set relations using the name of the related table, too, without accessing the ID field at all:
+
+```python
+    >>> book['author'] = author
+    >>> book['author_id']
+    1
+    >>> book['author'].id
+    1
+    >>> book['author'].name
+    'J K Rowling'
+```
+
 **NOTE: The current version of SPODS does _NOT_ support attribute access (e.g. `b.author`, in the above example) for relationships. We are working on fixing this, but for now, only dictionary access (e.g. `b['author']`) is supported.**
+
+**NOTE 2: To detach an author, you cannot use `book['author'] = None`, but must use the corresponding related field, `book['author_id'] = None`. We are also working on fixing this.**
     
 ## The JSON API
 
