@@ -1,141 +1,30 @@
-#!/usr/bin/python
-
 # use SQLite for now
 import sqlite3
-import json
 
 from UserDict import IterableUserDict
 
-class Field(object):
-    """The class representing a single field in a table."""
-    
-    type_map = {
-        str: ("TEXT", str),
-        int: ("INTEGER", int),
-        bool: ("INTEGER", lambda x: {True: 1, False: 0}[x]),
-        tuple: ("TEXT", json.dumps)
-    }
-    
-    def __init__(self, title, python_type=None, null=None, default=None, pk=None, fk=None):
-        for c in title:
-            if c.lower() not in 'abcdefghijklmnopqrstuvwxyz' + '0123456789' + '_':
-                raise Exception("Field name contains invalid characters.")
-        
-        self.title = title
-        self.python_type = python_type
-        self.null = null
-        self.default = default
-        self.pk = pk
-        self.fk = fk
+from base import Field, Table
 
-        self.sql_type = None
-        self.type_converter = None
-        if self.python_type != None:
-            self.sql_type = self.type_map[self.python_type][0]
-            self.type_converter = self.type_map[self.python_type][1]
+# TODO: this is duplicately defined in base. Put them both in a common include
+is_function = lambda f: hasattr(f, '__call__')
 
-    def __str__(self):
-        return self.title
-
-class Table(object):
-    """The class representing an unlinked table.
-
-    A table consists of 1 or more fields, and exactly one primary key."""
-    
-    def __init__(self, title, fields=[]):
-        self.title = title
-        self.fields = fields
-
-        # create the ID field, if no primary key was specified
-        for f in fields:
-            if f.pk == True:
-                self.pk = f
-                break
-        else:
-            # no fields are PK
-            self.pk = Field('id', int, pk=True)
-            fields.append(self.pk)
-
-    @staticmethod
-    def field_stmt(field):
-        query = ""
-        
-        # 1. title
-        query += " %s " % field.title
-
-        # 1b. type
-        if field.sql_type != None:
-            query += " %s " % field.sql_type
-
-        # 2. null or not null
-        if field.null == False:
-            query += " NOT NULL "
-
-        # 3. default val
-        if field.default != None:
-            query += " DEFAULT %r " % (field.default)
-
-        # 4. primary key?
-        if field.pk == True:
-            query += " PRIMARY KEY "
-
-        return query
-
-    def delete_table_stmt(self, force=False):
-        if force:
-            query = "DROP TABLE %s" % self.title
-        else:
-            query = "DROP TABLE IF EXISTS %s" % self.title
-
-        return query
-
-    def create_table_stmt(self, force=False):
-        if force:
-            query = "CREATE TABLE %s (" % self.title
-        else:
-            query = "CREATE TABLE IF NOT EXISTS %s (" % self.title
-
-        for field in self.fields:
-            query += Table.field_stmt(field)
-
-            # 5. comma
-            query += " ,"
-
-        # remove last comma
-        query = query[:-1]
-        query += ")"
-        
-        return query
-    
-    def add_field_stmt(self, new_field):
-        query = "ALTER TABLE %s ADD COLUMN " % (self.title)
-        query += Table.field_stmt(new_field)
-        return query
-        
-    def is_field(self, field_title):
-        for field in self.fields:
-            if field.title == field_title:
-                return True
-        return False
-
-    def is_pk(self, field_title):
-        for field in self.fields:
-            if field.title == field_title:
-                if field.pk:
-                    return True
-                return False
-        return False
-
-    def fks(self):
-        return [x for x in self.fields if x.fk]
-
-def link_table(table, db, clear_existing=False):
+def link_table(table, db, clear_existing=False, session_field=None, force_session=False):
     """Given a table object and a database connection, returns a class that
     represents rows within that table, linked to the database.
     
     New objects created and modified with this class will be reflected in the database.
 
     If clear_existing is True, deletes the table (if it exists) before linking it.
+
+
+    The following parameters apply during the API stage:
+
+    If session_field is a string, the value of that field in the table is stored in
+    the user's cookie. It must be unique, as it is used as a discriminator to find the
+    matching record in the table when a user's cookie is detected.
+
+    If force_session is True, a new object is created if no matching object is found
+    for a particular user's session, and that session is saved to that user.
     """
 
     # helper functions that, through closure, are specific to this table
@@ -164,8 +53,13 @@ def link_table(table, db, clear_existing=False):
 
         Each object created with this class is linked to the database table."""
 
-        # save the table object to thisClass.table
+        # save the objects & parameters to this class
         locals()['table'] = table
+        locals()['session_field'] = session_field
+        locals()['force_session'] = force_session
+
+        # a hack to tell that this is a linked class
+        locals()['linkedclass'] = True
 
         ## Static methods for getting/setting values with the attribute interface
         # ie. obj.key = val
@@ -216,8 +110,10 @@ def link_table(table, db, clear_existing=False):
                 
                 # not a valid key
                 raise AttributeError(key)
-            
-            return self.data[key]
+
+            # apply any out masks, and return
+            val = self.data[key]
+            return table.get_field(key).out_mask(val)
 
         def __setitem__(self, key, value):
             # check if we're assigning to an item
@@ -242,10 +138,13 @@ def link_table(table, db, clear_existing=False):
                 # TODO: not working?
                 raise AttributeError(key)
                 return
+
+            # apply any in masks
+            new_value = table.get_field(key).in_mask(value)
             
             # update db & save
-            run_query("UPDATE %s SET %s = ? WHERE %s = ?" % (table.title, key, table.pk.title), (value, self.id))
-            self.data[key] = value
+            run_query("UPDATE %s SET %s = ? WHERE %s = ?" % (table.title, key, table.pk.title), (new_value, self[table.pk.title]))
+            self.data[key] = new_value
 
         def __delitem__(self, key):
             if not table.is_field(key):
@@ -287,11 +186,15 @@ def link_table(table, db, clear_existing=False):
             # load record
             self.read_sync()
 
-            # save initialised values
+            # save initialised values (and defaults, for non-initialised values)
             # TODO: do this with a query, in a single DB call, in the INSERT statement above
-            for k in kw:
-                if table.is_field(k):
-                    self[k] = kw[k]
+            for field in table.fields:
+                if field.title in kw:
+                    self[field.title] = kw[field.title]
+                elif field.default and not is_function(field.default):
+                    self[field.title] = field.default
+                elif field.default and is_function(field.default):
+                    self[field.title] = field.default()
 
         ## Sync methods
         def read_sync(self):
@@ -443,165 +346,3 @@ def link_table(table, db, clear_existing=False):
             table.fields.append(new_field)
 
     return LinkedClass
-
-MAX_LIMIT = 25
-
-def handle_request(cookie, data, classes):
-    """Given a list of classes, as well as the cookies and CGI form data,
-    responds to the given request, returning a Python object."""
-
-    result = { 'status': 0, 'error': '', 'data': None }
-
-    try:
-
-        # check they specified an object
-        if 'obj' not in data:
-            result['status'], result['error'] = (1, 'No objects specified.')
-            return result
-
-        # get the class they specified
-        specified_class = None
-        for c in classes:
-            if c.__name__ == data['obj'].value:
-                # custom function
-
-                # get other URL params
-                params = {}
-                for field in data:
-                    params[field] = data[field].value
-
-                # send special params
-                params['_cookie'] = cookie
-                params['_classes'] = classes
-
-                # call function
-                result['data'] = c(**params)
-
-                # done
-                return result
-            else:
-                try:
-                    if c.table.title == data['obj'].value:
-                        specified_class = c
-                        break
-                except:
-                    continue
-
-        if specified_class == None:
-            # no class found
-            result['status'], result['error'] = (1, 'Invalid object specified.')
-            return result
-
-        # build up the options
-        if 'fetch' in data and data['fetch'].value.lower() == 'one':
-            # fetch one
-            start = 0
-            limit = 1
-        else:
-            # fetch all
-            start = 0
-            limit = MAX_LIMIT
-            if 'start' in data and data['start'].value.isdigit() and int(data['start'].value) >= 0:
-                start = int(data['start'].value)
-            if 'limit' in data and data['limit'].value.isdigit() and int(data['limit'].value) >= 0:
-                limit = int(data['limit'].value)
-            
-        action = 0 # view
-        if 'action' in data:
-            if data['action'].value.lower() == 'add': action = 1 # add
-            if data['action'].value.lower() == 'edit': action = 2 # change
-            if data['action'].value.lower() == 'delete': action = 3 # delete
-
-        # find the fields from the remaining arguments
-        # TODO: prevent fields from being called fetch, action or obj
-        field_values = {}
-        field_search_values = {}
-        for field in data:
-            if specified_class.table.is_field(field):
-                field_values[field] = data[field].value
-            elif specified_class.table.is_field(field.strip('*')):
-                field_search_values[field.strip('*')] = data[field].value
-
-        # perform the specified action
-        if action == 1:
-            # we're adding: get the fields together and build the object
-            new_obj = specified_class(**field_values)
-            result['data'] = [dict(new_obj)]
-
-        else:
-            # we need to get the objects to modify
-
-            if action != 2:
-                field_values['_start'] = start
-                field_values['_limit'] = limit
-                
-                # use the regular field values
-                objs = specified_class.get_all(**field_values)
-                result['data'] = [dict(obj) for obj in objs]
-
-                if action == 3:
-                    # delete the rows
-                    for obj in objs:
-                        del obj[specified_class.table.pk.title]
-            else:
-                field_search_values['_start'] = start
-                field_search_values['_limit'] = limit
-                
-                # use the asterisked fields for searching...
-                objs = specified_class.get_all(**field_search_values)
-
-                # ...and the regular fields for modifying
-                for obj in objs:
-                    for field in field_values:
-                        obj[field] = field_values[field]
-
-                # done
-                result['data'] = [dict(obj) for obj in objs]
-
-    except Exception, e:
-        result['status'], result['error'] = 2, "%s: %s" % (type(e).__name__, str(e))
-
-    return result
-
-def serve_api(*args):
-    """Given a list of LinkedClasses, reads the cookies and form data from the user and
-    tries to perform the specified request.
-
-    Returns a string, representing the content to print to the screen, which includes the
-    HTTP status response code, the cookie data, and the resulting JSON."""
-
-    from os import environ
-    from cgi import FieldStorage
-    from Cookie import SimpleCookie
-    from json import dumps
-
-    # TODO: remove this (for debugging only)!
-    from cgitb import enable as enable_debug; enable_debug()
-
-    # get cookies
-    cookie = SimpleCookie()
-    cookie_string = environ.get('HTTP_COOKIE')
-    if cookie_string:
-        cookie.load(cookie_string)
-
-    # get URL data
-    cgi_data = FieldStorage()
-
-    # handle request
-    result = handle_request(cookie, cgi_data, args)
-    status = result.get('status', 1)
-
-    # return appropriate response
-    response = ""
-    if cookie: response += str(cookie)
-
-    # TODO: get the status to return appropriately: is this possible as a CGI script?
-    # response += 'Status: '
-    # if status > 0: response += '400 Bad Request\r\n'
-    # if status < 0: response += '401 Unauthorized\r\n'
-    # se: response += '200 OK\r\n'
-    
-    response += "Content-Type: application/JSON\r\n\r\n"
-    if result: response += dumps(result)
-
-    return response

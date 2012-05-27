@@ -219,10 +219,10 @@ API requests are in the following format:
 ```
     http://www.yourdomain.com/api.py?
         obj={ <table_name> }
-        [&action={ (view) | add | edit | delete }]
+        [&action={ (view) | new | edit | delete }]
         [&<field>={ <value> }]
         
-        if action!=add:
+        if action!=new:
             [&fetch={ (all) | one }]
             
             if fetch=all:
@@ -391,6 +391,50 @@ And the response would look like:
 Any `Exception`s raised during the functions execution will be translated into error codes & error messages in the returned JSON.
 
 Similarly, whatever is returned from your function will be saved in the `data` field of the JSON response.
+
+#### Sessions
+
+SPODS provides a conveniently easy interface to sessions, and even provides a built-in table you can choose to link and use.
+
+To store a session, you need to decide:
+* Where to store the secret session key (the most common place is the Session object)
+* How long a session should last for (default is forever)
+* When does a user enter a session (do they enter a session as soon as they visit your site, or only after logging in?)
+
+
+#### Converters (masks)
+
+
+
+There are 2 kinds of masks: input masks (that are applied when the object is _modified_, and data is about to go _into_ the database) and output masks (that are applied when the data comes _out_ of the database).
+
+For example, one pair of masks might look like:
+
+```python
+    def encrypt(s):
+        return reversed(s)
+    def decrypt(s):
+        return reversed(s)
+        
+    Field('stored_backwards', in_mask=encrypt, out_mask=decrypt)
+```
+
+If these masks were used, the data would be stored in the DB as its reversed self, but appear the correct way around when accessed by the application.
+
+A more practical use might be when hashing passwords:
+
+```python
+    def hashify(s):
+        return hash(s)
+        
+    Field('password', in_mask=hashify)
+```
+
+Note how the hashify function has no out_mask: it will appear as it is stored (as the hash) to the application.
+
+#### Field permissions
+
+
 
 ## That's it!
 

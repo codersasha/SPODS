@@ -1,1 +1,4 @@
-from main import Field, Table, link_table, handle_request, serve_api
+
+from base import Field, Table
+from table_linker import link_table
+from json_api import handle_request, serve_api

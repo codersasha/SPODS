@@ -1,6 +1,9 @@
 #!/usr/bin/python
 
-from main import *
+from base import Field, Table
+from table_linker import link_table
+from api import handle_request, serve_api
+
 import sqlite3
 
 con = sqlite3.connect(":memory:")
@@ -28,5 +31,4 @@ Person.has_one(Book)
 person = Person()
 book = Book()
     
-
-    
+print serve_api(Book, Person)
