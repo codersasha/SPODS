@@ -47,19 +47,8 @@ fields = [
 users_table = Table('user', fields)
 User = link_table(users_table, con)
 
-
-## BOOKS ##
-fields = [
-    Field('id', int, pk=True),
-    Field('title', str)
-]
-table = Table('book', fields)
-Book = link_table(table, con)
-
-## RELATIONS ##
+## SESSION HAS ONE USER ##
 Session.has_one(User)
-Book.has_one(User)
-User.has_one(Book)
 
 def login(**kw):
     # we are forcing a session, so kw['_session']['session'] cannot be None
@@ -97,7 +86,7 @@ def logout(**kw):
     return True
 
 if __name__ == "__main__":
-    print serve_api(Session, User, Book, login, logout)
+    print serve_api(Session, User, login, logout)
     
 
     

@@ -10,6 +10,17 @@ def handle_request(cookie, data, session, classes):
 
     try:
 
+        # anything to expand?
+        expandables = []
+        if 'expand' in data:
+            for c in data['expand'].value.split(','):
+                # find this class
+                for cl in classes:
+                    if hasattr(cl, 'linkedclass') and cl.table.title == c:
+                        # found it
+                        expandables.append(cl)
+                        break
+
         # check they specified an object
         if 'obj' not in data:
             result['status'], result['error'] = (1, 'No objects specified.')
@@ -30,19 +41,16 @@ def handle_request(cookie, data, session, classes):
                 params['_cookie'] = cookie
                 params['_classes'] = classes
                 params['_session'] = session
+                params['_expand'] = expandables
 
                 # call function
                 result['data'] = c(**params)
 
                 # done
                 return result
-            else:
-                try:
-                    if c.table.title == data['obj'].value:
-                        specified_class = c
-                        break
-                except:
-                    continue
+            elif hasattr(c, 'linkedclass') and c.table.title == data['obj'].value:
+                specified_class = c
+                break
 
         if specified_class == None:
             # no class found
@@ -70,7 +78,7 @@ def handle_request(cookie, data, session, classes):
             if data['action'].value.lower() == 'delete': action = 3 # delete
 
         # find the fields from the remaining arguments
-        # TODO: prevent fields from being called fetch, action or obj
+        # TODO: prevent fields from being called fetch, action, obj, etc
         field_values = {}
         field_search_values = {}
         for field in data:
@@ -89,17 +97,45 @@ def handle_request(cookie, data, session, classes):
             # we need to get the objects to modify
 
             if action != 2:
+                # a GET or DELETE request
                 field_values['_start'] = start
                 field_values['_limit'] = limit
                 
                 # use the regular field values
                 objs = specified_class.get_all(**field_values)
-                result['data'] = [dict(obj) for obj in objs]
 
                 if action == 3:
-                    # delete the rows
+                    # save the rows
+                    result['data'] = [dict(obj) for obj in objs]
+                    
+                    # delete them
                     for obj in objs:
                         del obj[specified_class.table.pk.title]
+                else:
+                    # expand any fields we need to
+                    final_objs = []
+
+                    # we need a nice recursive function for this
+                    # (some variables are defined through closure)
+                    def expand_and_serialize(o, seen=[]):
+                        final_o = dict(o)
+                        for expandable_class in expandables:
+                            try:
+                                fk_title = expandable_class.table.title
+                                matched_value = o[fk_title]
+                                if matched_value not in seen:
+                                    final_o[fk_title] = expand_and_serialize(matched_value, seen + [o])
+                            except Exception:
+                                # no matched value for this expandable (or its FK)
+                                continue
+                        return final_o
+                    
+                    for o in objs:
+                        final_objs.append(expand_and_serialize(o))
+
+                    # done
+                    result['data'] = final_objs
+                        
             else:
                 field_search_values['_start'] = start
                 field_search_values['_limit'] = limit

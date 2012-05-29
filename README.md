@@ -366,6 +366,7 @@ The `**kw`* argument is a dictionary of all key-value pairs from the CGI input d
     * Another good use of this is to _not_ serve a particular object through your API, and _force_ access to it through custom functions
         * For example, providing default API access to `User` objects (which may contain passwords and the like) could pose a security risk
 * `'_session'` is a list of session objects; see the section on Sessions.
+* `'_expand'` is a list of objects specified for expansion; see the section on Related Object Expansion.
         
 Now, when registering your API, simply pass in your function (as well as any classes you'd like to respond to):
 
@@ -528,28 +529,42 @@ http://127.0.0.1:8000/cgi-bin/api.py?obj=logout
 
 #### Related object expansions
 
-To expand a related object, specify that object in the URL using the `exapnd` attribute, along with a list of comma-separated table names, e.g. `&expand=book,author`.
+To expand a related object, specify that object in the URL using the `expand` attribute, along with a list of comma-separated table names, e.g. `&expand=book,author`.
 
 This will look for values like `book_id` and `author_id`, and add related fields, such as `book` and `author`, which correspond to the JSON objects of the actual objects themselves.
 
 For example, without `expand=author,` a book object accessed via the API might look like:
 
 ```json
-    {"title": "The Wizard of Oz", "author_id": 5}
+    {"id": 10, "title": "The Wizard of Oz", "author_id": 5}
 ```
 
 But, with `expand=author`, the object might look like:
 
 ```json
-    {"title": "The Wizard of Oz", "author_id": 5, "author": {"id": 5, "name": "Mr. Someone"} }
+    {"id": 10, "title": "The Wizard of Oz", "author_id": 5, "author": {"id": 5, "name": "Mr. Someone", "user_id": 2} }
 ```
 
-Circular references will be automatically detected and ignored.
+You can also expand multiple objects at once, using something like `expand=author,book`. Blank objects, and objects that cannot be found, are ignored. Whitespace matters, so don't add any spaces!
 
+With `expand=author,user,book`, the object might look like:
 
+```json
+    {"id": 10, "title": "The Wizard of Oz", "author_id": 5, "author":
+        {"id": 5, "name": "Mr. Someone", "user_id": 2, "user": {
+            "id": 2, "username": "m_someone", "book_id": 10, "favourite_color": "Red"
+            }
+        }
+    }
+```
 
+Circular references are automatically detected and ignored. This means that the related field will only appear the first time in a _circular reference_: do not confuse this with multiple references to the same object.
 
+Notice how the user with username "m_someone" above has a book with `book_id: 10`, but it is not expanded, even though `book` has been selected for expansion. This is because it is a circular reference.
 
+**NOTE: For the time being, at least, expandables are only used by the SPODS core for `action=get` requests. They are still passed to custom API functions, however, so you can be creative on how you use them if you wish.**
+
+**NOTE 2: You CANNOT expand fields that you are not serving. Make sure the field you are expanding is an argument to the `serve_api` function, or it will be ignored.**
 
 #### Converters (masks)
 
@@ -580,6 +595,17 @@ A more practical use might be when hashing passwords:
 Note how the hashify function has no out_mask: it will appear as it is stored (as the hash) to the application.
 
 #### Field permissions
+
+For security, you probably won't want to allow all operations to be performed on your fields or tables. More importantly, you might want to allow access to certain fields during certain operations, but not during others. And much more importantly, you might want to allow a logged in user to access their own objects, but not somebody elses.
+
+Well, aren't you in luck! SPODS has a built-in, easy-as-pie permissions system to help model these permissions as you see fit.
+
+(Technically speaking, you could implement this feature yourself using custom API functions as wrappers, but SPODS is too awesome to let you spend any time reinventing the wheel).
+
+
+
+
+
 
 
 
