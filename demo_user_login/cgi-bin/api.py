@@ -14,29 +14,8 @@ from json_api import handle_request, serve_api
 import sqlite3
 
 con = sqlite3.connect("test.db")
-import random
-fields = [
-    Field('id', int, pk=True),
-    Field('title', str),
-    Field('isbn', str),
-    Field('condition', str)
-]
-books_table = Table('book', fields)
-Book = link_table(books_table, con)
 
-fields = [
-    Field('id', int, pk=True),
-    Field('name', str),
-    Field('age', int),
-    Field('happy', bool)
-]
-people_table = Table('person', fields)
-Person = link_table(people_table, con)
-
-Person.has_one(Book)
-
-
-# the session table
+## SESSIONS ##
 def generate_key():
     import hashlib, random
     return hashlib.sha1(str(random.random())).hexdigest()
@@ -53,6 +32,8 @@ fields = [
 sessions_table = Table('session', fields)
 Session = link_table(sessions_table, con, session_field='key', force_session=True)
 
+
+## USERS ##
 def encrypt_password(s):
     from hashlib import sha224
     return sha224(sha224(sha224(s).hexdigest()).hexdigest()).hexdigest()
@@ -60,15 +41,14 @@ def encrypt_password(s):
 fields = [
     Field('id', int, pk=True),
     Field('username', str),
-    Field('password', str, in_mask=encrypt_password)
+    Field('password', str, in_mask=encrypt_password),
+    Field('favourite_color', str)
 ]
 users_table = Table('user', fields)
 User = link_table(users_table, con)
 
+## SESSION HAS ONE USER ##
 Session.has_one(User)
-
-def dump(**kw):
-    raise Exception(kw)
 
 def login(**kw):
     # we are forcing a session, so kw['_session']['session'] cannot be None
@@ -106,7 +86,7 @@ def logout(**kw):
     return True
 
 if __name__ == "__main__":
-    print serve_api(Book, Person, Session, User, login, logout, dump)
+    print serve_api(Session, User, login, logout)
     
 
     

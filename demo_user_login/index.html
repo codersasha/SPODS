@@ -1,0 +1,281 @@
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>SPODS Example - Users Login</title>
+
+
+        <!-- jQuery: http://jquery.com/ -->
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+
+        <!-- Twitter Bootstrap: http://twitter.github.com/bootstrap/ -->
+        <link href="http://twitter.github.com/bootstrap/assets/css/bootstrap.css" rel="stylesheet" />
+        <link href="http://twitter.github.com/bootstrap/assets/js/bootstrap.js" rel="stylesheet" />
+        
+        <script>
+            $(function() {
+                
+                // user list refresh button
+                $("#user-list-refresh-button").click(function() {
+                    // fade out existing table
+                    $("#users-list").fadeOut();
+                    $("#user-list-throbber").fadeIn();
+                    $.ajax('/cgi-bin/api.py', {
+                        dataType: 'json',
+                        data: {
+                            obj: 'user', // the thing we want to get
+                            action: 'get', // what we want to do with them
+                            fetch: 'all', // how many we want
+                            
+                            start: 0, // the first one to get
+                            limit: 10 // the total number to get
+                        },
+                        success: function(json) {
+                            if (json.status == 0) {
+                                // success! do some stuff with the json
+                                $("#users-list tbody").empty();
+                            
+                                $.each(json.data, function(i, e) {
+                                    var tr = $("<tr />")
+                                    .append($("<td />").text(e.id))
+                                    .append($("<td />").text(e.username))
+                                    .append($("<td />").text(e.password))
+                                    .append($("<td />").text(e.favourite_color))
+                                    .append( $("<td />").append(
+                                    // delete button
+                                    $("<button class='btn' />")
+                                    .append($("<icon class='icon-trash' />"))
+                                    .click(function() {
+                                        $.ajax('/cgi-bin/api.py', {
+                                            dataType: 'json',
+                                            data: {
+                                                obj: 'user', // the thing we want to get
+                                                action: 'delete', // what we want to do with them
+                                                fetch: 'one', // how many we want
+                                            
+                                                // filters
+                                                id: e.id
+                                            },
+                                            success: function(json) {
+                                                if (json.status == 0) {
+                                                    tr.fadeOut(function() {
+                                                        tr.remove();
+                                                    });
+                                                }
+                                            }
+                                        })
+                                    })
+                                ))
+                                    .append( $("<td />"));
+    
+                                    $("#users-list tbody").append(tr);
+                                });
+
+                                // fade table back in
+                                $("#users-list").fadeIn();
+                            } else {
+                                // error: something went wrong on the application side
+                                // look at the 'error' field for details
+                                alert("Error: " + json.error);
+                            }
+                        },
+                        error: function(a, b, c) {
+                            // something went wrong altogether: connection issues, etc
+                            alert("Something went horribly wrong!");
+                        },
+                        complete: function() {
+                            $("#user-list-throbber").fadeOut();
+                        }
+                    });
+                })
+                // click it now to refresh the list on page load
+                .click();
+
+                // new user save button
+                $("#new-user-save-button").click(function(e) {
+                    e.preventDefault();
+
+                    $("#new-user-form-throbber").fadeIn();
+                    $.ajax('/cgi-bin/api.py', {
+                        dataType: 'json',
+                        data: {
+                            obj: 'user', // the thing we want to get
+                            action: 'new', // what we want to do with them
+                            
+                            // new object values
+                            username: $("#new-user-username").val(),
+                            password: $("#new-user-password").val(),
+                            favourite_color: $("#new-user-color").val()
+                        },
+                        success: function(json) {
+                            if (json.status == 0) {
+                                // success! do some stuff with the json
+                                $.each(json.data, function(i, e) {
+                                    alert("You added a new user, with ID " + e.id + ", username " + e.username + ", password " + e.password + " and favourite color " + e.favourite_color + ".");
+                                });
+                            } else {
+                                // error: something went wrong on the application side
+                                // look at the 'error' field for details
+                                alert("Error: " + json.error);
+                            }
+                        },
+                        error: function(a, b, c) {
+                            // something went wrong altogether: connection issues, etc
+                            alert("Something went horribly wrong!");
+                        },
+                        complete: function() {
+                            $("#new-user-form-throbber").fadeOut();
+                        }
+                    });
+                    
+                })
+                
+                // existing user login button
+                $("#login-user-save-button").click(function(e) {
+                    e.preventDefault();
+
+                    $("#login-user-form-throbber").fadeIn();
+                    $.ajax('/cgi-bin/api.py', {
+                        dataType: 'json',
+                        data: {
+                            obj: 'login', // the thing we want to get
+                            
+                            username: $("#old-user-username").val(),
+                            password: $("#old-user-password").val()
+                        },
+                        success: function(json) {
+                            if (json.status == 0) {
+                                // success! do some stuff with the json
+                                alert("You logged in OK!");
+                                
+                                // refresh login area
+                                $("#login-user-refresh-button").click();
+                            } else {
+                                // error: something went wrong on the application side
+                                // look at the 'error' field for details
+                                alert("Error: " + json.error);
+                            }
+                        },
+                        error: function(a, b, c) {
+                            // something went wrong altogether: connection issues, etc
+                            alert("Something went horribly wrong!");
+                        },
+                        complete: function() {
+                            $("#login-user-form-throbber").fadeOut();
+                        }
+                    });
+                    
+                })
+                
+                // existing user logout button
+                $("#login-user-logout-button").click(function(e) {
+                    e.preventDefault();
+
+                    $("#login-user-form-throbber").fadeIn();
+                    $.ajax('/cgi-bin/api.py', {
+                        dataType: 'json',
+                        data: {
+                            obj: 'logout'
+                        },
+                        success: function(json) {
+                            if (json.status == 0) {
+                                // success! do some stuff with the json
+                                alert("You logged out OK!");
+                                
+                                // refresh login area
+                                $("#login-user-refresh-button").click();
+                            } else {
+                                // error: something went wrong on the application side
+                                // look at the 'error' field for details
+                                alert("Error: " + json.error);
+                            }
+                        },
+                        error: function(a, b, c) {
+                            // something went wrong altogether: connection issues, etc
+                            alert("Something went horribly wrong!");
+                        },
+                        complete: function() {
+                            $("#login-user-form-throbber").fadeOut();
+                        }
+                    });
+                    
+                })
+                
+            })
+        </script>
+
+    </head>
+    <body>
+
+        <div class="container">
+            <!-- header -->
+            <div class="page-header">
+                <div class="pull-right"><img src="http://icons.iconarchive.com/icons/aha-soft/people/256/users-icon.png" height="100" /></div>
+                <h1>User Manager</h1>
+            </div>
+
+            <button class="btn" id="user-list-refresh-button"><i class="icon-refresh"></i> Refresh</button> <img src="http://files.quickmediasolutions.com/throbber.svg" id="user-list-throbber" class="hide"/>
+
+
+            <table id="users-list" class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Username</th>
+                        <th>Password (hashed)</th>
+                        <th>Favourite Color</th>
+                        <th><i class="icon-trash"></i></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- users go here -->
+                </tbody>
+            </table>
+
+            <div class="row">
+                <div class="span6">
+            <!-- new user form -->
+            <form id="new-user-form">
+                <h2>New User</h2>
+                <label>Username</label>
+                <input type="text" class="span3" placeholder="Username" id="new-user-username">
+                <label>Password</label>
+                <input type="password" class="span3" placeholder="Password" id="new-user-password">
+                <label>Favourite Color</label>
+                <select id="new-user-color">
+                    <option>Red</option>
+                    <option>Green</option>
+                    <option>Pink</option>
+                    <option>Blue</option>
+                </select>
+
+                <div class="form-actions">
+                    <button id="new-user-save-button" type="submit" class="btn btn-primary"><i class="icon-plus icon-white"></i> Add</button>
+                    <img src="http://files.quickmediasolutions.com/throbber.svg" class="hide" id="new-user-form-throbber" />
+                </div>
+            </form>
+
+                </div><div class="span6">
+            
+            <!-- existing user form -->
+            <form id="login-user-form">
+                <h2>Login</h2>
+                <label>Username</label>
+                <input type="text" class="span3" placeholder="Username" id="old-user-username">
+                <label>Password</label>
+                <input type="password" class="span3" placeholder="Password" id="old-user-password">
+
+                <div class="form-actions">
+                    <button id="login-user-save-button" type="submit" class="btn btn-success"><i class="icon-ok icon-white"></i> Login</button>
+                    <button id="login-user-logout-button" type="submit" class="btn btn-danger"><i class="icon-remove icon-white"></i> Logout</button>
+                    <img src="http://files.quickmediasolutions.com/throbber.svg" class="hide" id="login-user-form-throbber" />
+                </div>
+            </form>
+
+                </div>
+            </div>
+            
+        </div> <!-- container -->
+    </body>
+</html>
+
