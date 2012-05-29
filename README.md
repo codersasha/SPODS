@@ -600,14 +600,65 @@ For security, you probably won't want to allow all operations to be performed on
 
 Well, aren't you in luck! SPODS has a built-in, easy-as-pie permissions system to help model these permissions as you see fit.
 
-(Technically speaking, you could implement this feature yourself using custom API functions as wrappers, but SPODS is too awesome to let you spend any time reinventing the wheel).
+(Technically speaking, you could implement this feature yourself using custom API functions as wrappers, but SPODS is too awesome to let you spend any time writing stuff that isn't direct application logic).
 
+The first thing to point out is all the operations that are allowed on a field by default:
 
+1. **Viewable**, meaning this field is listed with the `fetch=one` API call (or with a `expand=...` call - see the field on Expanding Related Fields)
+2. **Listable**, meaning this field is listed with the `fetch=all` API call
+3. **Editable**, meaning this field's value can be modified
 
+Furthermore, there are some operations that apply to an entire table (all fields):
+1. **Addable**, meaning records can be added to this table
+2. **Editable**, meaning records can be edited in this table
+3. **Deletable**, meaning records can be deleted from this table
+4. **Viewable**, meaning records in this table can be viewed.
 
+The permissions on a table are _less specific_ than the permissions on an individual field. This means that if, for example, a table is editable but a field is not, all fields in that table will be editable except the one specified as "not editable".
 
+There are also 3 'permissions levels' for each operation:
 
+1. **Public**. Objects that are public have all the operations available. This is the default.
+2. **Dependent**. Protected fields have all operations available *if the object they are linked to has the operations available*. For example, a `User` can only access the `Book` objects that has their `user_id`.
+    * When specifying a dependent _field_, you specify the connection in the _local_ table that has the foreign
+3. **Private**. Private fields require
 
+You can specify the permissions available to each field at each permission level, and they will become available as the permission levels are satisfied. For example:
+* A user can view all Book objects
+* A user can add and edit all Book objects that they own
+* An administrator can delete all Book objects
+
+Would be translated to:
+* `Book` public mask: viewable
+* `Book` session mask: addable and editable, dependency: book.user = session.user
+* `Book` static mask: deletable, condition: book.user.is_admin = 1
+
+And, in the code, we can implement this when linking the tables, as:
+```python
+
+    Book = link_table(table, con, [
+        # public mask (viewable)
+        (PUBLIC, ['view']),
+    
+        # session mask (addable, editable)
+        # (SESSION, [ operations ], [ local attribute ], [ session attribute ])
+        (SESSION, ['new', 'edit'], ['user'], ['user'])
+        
+        # static mask (deletable)
+        # (STATIC, [ operations ], [ attribute ], [ equality value ])
+        (STATIC, ['delete'], ['user', 'is_admin'], 1)
+        
+    ])
+
+```
+
+The attribute list `[ attribute ]` is just a list of accesses you would normally use to reach the attribute. For example, `(table).user.book.title` would be `['user', 'book', title]` as an attribute list.
+
+You can customise this as much as you want, including adding multiple access masks with different criteria.
+
+**NOTE: There is currently no way to make access masks dependent on each other. However, you can always implement the functionality you need through a custom API function of your choice.**
+
+How easy was that? ;)
 
 ## That's it!
 
