@@ -45,30 +45,68 @@ def get_ip():
     from os import environ
     return environ.get('REMOTE_ADDR')
 
+fields = [
+    Field('id', int, pk=True),
+    Field('key', str, default=generate_key),
+    Field('ip', str, default=get_ip)
+]
+sessions_table = Table('session', fields)
+Session = link_table(sessions_table, con, session_field='key', force_session=True)
+
 def encrypt_password(s):
     from hashlib import sha224
     return sha224(sha224(sha224(s).hexdigest()).hexdigest()).hexdigest()
 
-
 fields = [
     Field('id', int, pk=True),
-    Field('key', str),
-    Field('ip', str)
+    Field('username', str),
+    Field('password', str, in_mask=encrypt_password)
 ]
-sessions_table = Table('session', fields)
-Session = link_table(sessions_table, con, session_field='key', force_session=False)
+users_table = Table('user', fields)
+User = link_table(users_table, con)
 
+Session.has_one(User)
 
-def check_credit(**kw):
-    if 'credit_card' not in kw or not kw['credit_card'].isdigit():
-        raise Exception("Please enter a valid credit card number.")
-    credit_sum = 0
-    for digit in kw['credit_card']:
-        credit_sum += int(digit)
-    return {'sum': credit_sum}
+def dump(**kw):
+    raise Exception(kw)
+
+def login(**kw):
+    # we are forcing a session, so kw['_session']['session'] cannot be None
+    
+    if kw['_session']['session']['user']:
+        # a user object already exists in this session
+        raise Exception("You are already logged in.")
+    
+    if 'username' not in kw or 'password' not in kw:
+        # a username or password was not entered
+        raise Exception("Please enter your username and password.")
+
+    matching_user = User.get_one(username=kw['username'], password=kw['password'])
+    if not matching_user:
+        # no user found with this user/pass combination
+        raise Exception("Your username and/or password is incorrect.")
+
+    # everything looks OK: save this user to their session object
+    kw['_session']['session']['user'] = matching_user
+
+    # their cookie doesn't need to be updated, since we didn't change the session itself
+    return True
+
+def logout(**kw):
+    # we are forcing a session, so kw['_session']['session'] cannot be None
+    
+    if not kw['_session']['session']['user']:
+        # a user object does not exist in this session
+        raise Exception("You are not logged in.")
+
+    # everything looks OK: remove the user from this session object
+    kw['_session']['session']['user'] = None
+
+    # their cookie doesn't need to be updated, since we didn't change the session itself
+    return True
 
 if __name__ == "__main__":
-    print serve_api(Book, Person, check_credit, Session)
+    print serve_api(Book, Person, Session, User, login, logout, dump)
     
 
     

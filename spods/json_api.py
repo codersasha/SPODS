@@ -2,8 +2,8 @@ import json
 
 MAX_LIMIT = 25
 
-def handle_request(cookie, data, classes):
-    """Given a list of classes, as well as the cookies and CGI form data,
+def handle_request(cookie, data, session, classes):
+    """Given a list of classes, as well as the cookies, session objects and CGI form data,
     responds to the given request, returning a Python object."""
 
     result = { 'status': 0, 'error': '', 'data': None }
@@ -29,6 +29,7 @@ def handle_request(cookie, data, classes):
                 # send special params
                 params['_cookie'] = cookie
                 params['_classes'] = classes
+                params['_session'] = session
 
                 # call function
                 result['data'] = c(**params)
@@ -144,11 +145,29 @@ def serve_api(*args):
     if cookie_string:
         cookie.load(cookie_string)
 
+    # try and get session objects for any of the input classes that have session storage
+    session = {}
+    for c in args:
+        if hasattr(c, 'linkedclass') and c.session_field:
+            # try and match with cookie values
+            session_value = cookie.get(c.table.title + '_' + c.session_field)
+            session_obj = None
+            if session_value:
+                session_obj = c.get_one(**{ c.session_field: session_value.value })
+
+            # force a new session object, if needed, and save back to the cookie
+            if not session_obj and c.force_session:
+                session_obj = c()
+                cookie[c.table.title + '_' + c.session_field] = session_obj[c.session_field]
+
+            # save to session vars
+            session[c.table.title] = session_obj
+
     # get URL data
     cgi_data = FieldStorage()
 
     # handle request
-    result = handle_request(cookie, cgi_data, args)
+    result = handle_request(cookie, cgi_data, session, args)
     status = result.get('status', 1)
 
     # return appropriate response

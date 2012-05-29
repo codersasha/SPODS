@@ -61,6 +61,7 @@ class Table(object):
         self.fields = fields
 
         # create the ID field, if no primary key was specified
+        # TODO: ensure only 1 primary key was specified
         for f in fields:
             if f.pk == True:
                 self.pk = f

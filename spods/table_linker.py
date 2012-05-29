@@ -92,14 +92,14 @@ def link_table(table, db, clear_existing=False, session_field=None, force_sessio
                 # not a field... but is it one of the FKs?
                 # check if it's a known foreign key in this table
                 for field in table.fks():
-                    # TODO: this comparison is iffy; if a table name has an underscore in it, this won't match the table's FK correctly
+                    # TODO: this comparison is iffy; if a primary key has an underscore in it, this won't match the table's FK correctly
                     foreign_table_name = field.title.split('_')[0]
                     if foreign_table_name == key:
                         # yup, its this FK: get the matching attribute
                         foreign_table_pk_name = field.fk.table.pk.title
                         fk = self.data[foreign_table_name + '_' + foreign_table_pk_name]
 
-                        if fk == None:
+                        if not fk:
                             # not linked to anything
                             return None
 
@@ -117,25 +117,30 @@ def link_table(table, db, clear_existing=False, session_field=None, force_sessio
 
         def __setitem__(self, key, value):
             # check if we're assigning to an item
-            # TODO: this is dodgy, just checks if the class has attribute 'table'
-            if hasattr(type(value), 'table'):
-                # is this a valid link? (e.g. x['book'] is going to be stored in table 'book')
-                if key != type(value).table.title:
-                    raise AttributeError(key + " is not a valid type for table " + type(value).table.title)
-
-                # get the foreign key we need to look for
-                foreign_pk_field = type(value).table.pk.title
-                foreign_key_name = type(value).table.title + '_' + foreign_pk_field
-                if foreign_key_name not in self.data:
-                    raise AttributeError("Required foreign key " + foreign_key_name + " not found. Have you linked the classes using .has_one()?")
-
-                # overwrite the foreign key (recursive call)
-                self[foreign_key_name] = value[foreign_pk_field]
-                return
-            
-            elif not table.is_field(key):
+            if not table.is_field(key):
                 # not a valid key
-                # TODO: not working?
+
+                # check if we're assigning to a FK
+                for field in self.table.fks():
+                    if field.fk.table.title == key:
+                        # this is a potentially matching field
+                        foreign_pk_field = field.fk.table.pk.title
+                        local_fk_field = field.title
+
+                        # is this a valid link? (e.g. x['book'] is going to be stored in table 'book')
+                        if value != None and key != type(value).table.title:
+                            raise AttributeError(str(key) + " is not a valid type for table " + type(value).table.title)
+
+                        # overwrite the foreign key, either with 0 or with the corresponding PK value
+                        if value == None:
+                            self[local_fk_field] = 0
+                        else:
+                            self[local_fk_field] = value[foreign_pk_field]
+
+                        # done
+                        return
+                        
+                # no match found
                 raise AttributeError(key)
                 return
 
@@ -191,10 +196,12 @@ def link_table(table, db, clear_existing=False, session_field=None, force_sessio
             for field in table.fields:
                 if field.title in kw:
                     self[field.title] = kw[field.title]
-                elif field.default and not is_function(field.default):
-                    self[field.title] = field.default
-                elif field.default and is_function(field.default):
-                    self[field.title] = field.default()
+                elif field.default and table.pk.title not in kw:
+                    # making a new record: save defaults
+                    if not is_function(field.default):
+                        self[field.title] = field.default
+                    elif field.default and is_function(field.default):
+                        self[field.title] = field.default()
 
         ## Sync methods
         def read_sync(self):
@@ -278,7 +285,7 @@ def link_table(table, db, clear_existing=False, session_field=None, force_sessio
                         query_clause += " %s IS NULL " % (k)
                     else:
                         query_clause += " %s = ? " % (k)
-                        query_args.append(kw[k])
+                        query_args.append(table.get_field(k).in_mask(kw[k]))
 
             # search to get primary keys
             query = "SELECT %s FROM %s " % (table.pk.title, table.title)

@@ -34,7 +34,7 @@ First, create a bunch of `Field` objects and store them in a `Table`:
     ... 
     >>> books_table = Table('book', fields)
 ```
-    
+
 Now it's time to link our table to our database, and start making objects. To do this, simply connect to your database and call the `create_linked_class(table, connection)` function:
     
 ```python
@@ -365,7 +365,8 @@ The `**kw`* argument is a dictionary of all key-value pairs from the CGI input d
     * For example, to check if your API is serving `Person` objects, you can check `if Person in kw['_classes']`
     * Another good use of this is to _not_ serve a particular object through your API, and _force_ access to it through custom functions
         * For example, providing default API access to `User` objects (which may contain passwords and the like) could pose a security risk
-
+* `'_session'` is a list of session objects; see the section on Sessions.
+        
 Now, when registering your API, simply pass in your function (as well as any classes you'd like to respond to):
 
 ```python
@@ -401,10 +402,156 @@ To store a session, you need to decide:
 * How long a session should last for (default is forever)
 * When does a user enter a session (do they enter a session as soon as they visit your site, or only after logging in?)
 
+You can specify an object to be stored in the session when calling `link_table()`.
+* The flag `session_field` specifies the field to store in the user's cookie
+* The flag `force_session` will force creation of a new object for any visitors that do not have a matching object for their key
+
+For example:
+
+```python
+Session = link_table(sessions_table, con, session_field='key', force_session=True)
+```
+
+This will create a table 'session', which stores the Session objects, and stores the `key` field on the user's computer. If no session is found with the user's key, a new one is created and assigned to that user.
+
+One way of creating this table might be:
+
+```python
+def generate_key():
+    import hashlib, random
+    return hashlib.sha1(str(random.random())).hexdigest()
+
+def get_ip():
+    from os import environ
+    return environ.get('REMOTE_ADDR')
+
+fields = [
+    Field('id', int, pk=True),
+    Field('key', str, default=generate_key),
+    Field('ip', str, default=get_ip)
+]
+sessions_table = Table('session', fields)
+```
+
+You can then access session objects in custom API calls using the `'_sessions'` value from the input keyword arguments. Each object can be accessed from the table it was linked from. For example, if you stored a `book` object in a user's session, you could use `kw['_session']['book']` to access the `book` object for that user (which would be `None` if the user had no matching `book` object).
+
+For example, a custom API function for logging a user in might look like:
+
+```python
+
+def encrypt_password(s):
+    from hashlib import sha224
+    return sha224(sha224(sha224(s).hexdigest()).hexdigest()).hexdigest()
+
+fields = [
+    Field('id', int, pk=True),
+    Field('username', str),
+    Field('password', str, in_mask=encrypt_password)
+]
+users_table = Table('user', fields)
+User = link_table(users_table, con)
+
+Session.has_one(User)
+```
+
+And then the login and logout API functions might look like:
+
+```python
+def login(**kw):
+    # we are forcing a session, so kw['_session']['session'] cannot be None
+    
+    if kw['_session']['session']['user']:
+        # a user object already exists in this session
+        raise Exception("You are already logged in.")
+    
+    if 'username' not in kw or 'password' not in kw:
+        # a username or password was not entered
+        raise Exception("Please enter your username and password.")
+
+    matching_user = User.get_one(username=kw['username'], password=kw['password'])
+    if not matching_user:
+        # no user found with this user/pass combination
+        raise Exception("Your username and/or password is incorrect.")
+
+    # everything looks OK: save this user to their session object
+    kw['_session']['session']['user'] = matching_user
+
+    # their cookie doesn't need to be updated, since we didn't change the session itself
+    return True
+
+def logout(**kw):
+    # we are forcing a session, so kw['_session']['session'] cannot be None
+    
+    if not kw['_session']['session']['user']:
+        # a user object does not exist in this session
+        raise Exception("You are not logged in.")
+
+    # everything looks OK: remove the user from this session object
+    kw['_session']['session']['user'] = None
+
+    # their cookie doesn't need to be updated, since we didn't change the session itself
+    return True
+```
+
+And, if serving the API involved:
+
+```python
+    print serve_api(Session, User, login, logout, dump)
+```
+
+This would behave like so:
+```
+-- http://127.0.0.1:8000/cgi-bin/api.py?obj=user&action=new&username=a&password=b
+{"status": 0, "data": [{"username": "a", "password": "a149184390bb5195c35b5e4a342aef80e523b57e7979439288d48ecb", "id": 3}], "error": ""}
+    
+http://127.0.0.1:8000/cgi-bin/api.py?obj=login
+{"status": 2, "data": null, "error": "Exception: Please enter your username and password."}
+
+http://127.0.0.1:8000/cgi-bin/api.py?obj=login&username=a
+{"status": 2, "data": null, "error": "Exception: Please enter your username and password."}
+
+http://127.0.0.1:8000/cgi-bin/api.py?obj=login&username=a&password=c    
+{"status": 2, "data": null, "error": "Exception: Your username and/or password is incorrect."}
+    
+http://127.0.0.1:8000/cgi-bin/api.py?obj=login&username=a&password=b
+{"status": 0, "data": true, "error": ""}
+
+http://127.0.0.1:8000/cgi-bin/api.py?obj=login&username=a&password=b
+{"status": 2, "data": null, "error": "Exception: You are already logged in."}
+
+http://127.0.0.1:8000/cgi-bin/api.py?obj=logout
+{"status": 0, "data": true, "error": ""}
+
+http://127.0.0.1:8000/cgi-bin/api.py?obj=logout
+{"status": 2, "data": null, "error": "Exception: You are not logged in."}
+```
+
+#### Related object expansions
+
+To expand a related object, specify that object in the URL using the `exapnd` attribute, along with a list of comma-separated table names, e.g. `&expand=book,author`.
+
+This will look for values like `book_id` and `author_id`, and add related fields, such as `book` and `author`, which correspond to the JSON objects of the actual objects themselves.
+
+For example, without `expand=author,` a book object accessed via the API might look like:
+
+```json
+    {"title": "The Wizard of Oz", "author_id": 5}
+```
+
+But, with `expand=author`, the object might look like:
+
+```json
+    {"title": "The Wizard of Oz", "author_id": 5, "author": {"id": 5, "name": "Mr. Someone"} }
+```
+
+Circular references will be automatically detected and ignored.
+
+
+
+
+
 
 #### Converters (masks)
-
-
 
 There are 2 kinds of masks: input masks (that are applied when the object is _modified_, and data is about to go _into_ the database) and output masks (that are applied when the data comes _out_ of the database).
 
