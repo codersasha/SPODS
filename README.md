@@ -652,9 +652,25 @@ And, in the code, we can implement this when linking the tables, as:
 
 ```
 
-The attribute list `[ attribute ]` is just a list of accesses you would normally use to reach the attribute. For example, `(table).user.book.title` would be `['user', 'book', title]` as an attribute list.
+The attribute list `[ attribute ]` is just a list of accesses you would normally use to reach the attribute. For example, `(table).user.book.title` would be `['user', 'book', 'title']` as an attribute list.
 
 You can customise this as much as you want, including adding multiple access masks with different criteria.
+
+Similarly, you can place masks on individual fields using a similar syntax (but now, the actions are 'view', 'list' and 'edit'):
+
+```python
+
+is_admin_field = Field('is_admin', int, masks=[
+        # by default, you can't even see this field
+        (PUBLIC, []),
+
+        # if you are logged in as this user, you can see your own value for this field
+        (SESSION, ['view', 'list'], ['id'], ['user', 'id']),
+
+        # if you are an admin, you can see & edit this field for anyone
+        (STATIC, ['view', 'list', 'edit'], ['is_admin'], 1)
+    ])
+```
 
 **NOTE: There is currently no way to make access masks dependent on each other. However, you can always implement the functionality you need through a custom API function of your choice.**
 

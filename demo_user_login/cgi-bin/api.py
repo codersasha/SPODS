@@ -1,7 +1,8 @@
 #!/usr/bin/python
 
-import sys
-sys.path.append("C:/Users/Sasha/Dropbox/Programming/Python MySQL Serializer/spods/")
+import sys, os
+os.chdir('../spods')
+sys.path.append(os.getcwd())
 
 #from spods import *
 
