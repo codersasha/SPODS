@@ -600,14 +600,9 @@ For security, you probably won't want to allow all operations to be performed on
 
 Well, aren't you in luck! SPODS has a built-in, easy-as-pie permissions system to help model these permissions as you see fit.
 
-(Technically speaking, you could implement this feature yourself using custom API functions as wrappers, but SPODS is too awesome to let you spend any time reinventing the wheel).
+... But it's under development right now!
 
-
-
-
-
-
-
+For the moment, you can implement this feature yourself using custom API functions as wrappers. You should have access to all the data you need to write any type of security you like!
 
 ## That's it!
 
